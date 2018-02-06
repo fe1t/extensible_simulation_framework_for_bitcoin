@@ -1,6 +1,9 @@
 package main
 
 import (
+	"bytes"
+	"encoding/gob"
+	"log"
 	"time"
 )
 
@@ -11,6 +14,25 @@ type Block struct {
 	Data      []byte
 	Hash      []byte
 	Nonce     int
+}
+
+// Serialize block header to byte array
+func Serialize(block *Block) []byte {
+	var result bytes.Buffer
+	gobEncoder := gob.NewEncoder(&result)
+	err := gobEncoder.Encode(block)
+	if err != nil {
+		log.Panic(err)
+	}
+	return result.Bytes()
+}
+
+// Deserialize byte array to block header
+func Deserialize(data []byte) *Block {
+	var block Block
+	gobDecoder := gob.NewDecoder(bytes.NewReader(data))
+	err := gobDecoder.Decode(&block)
+	return &block
 }
 
 // NewBlock creates simple block
