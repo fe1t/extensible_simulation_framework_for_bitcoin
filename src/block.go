@@ -32,6 +32,9 @@ func Deserialize(data []byte) *Block {
 	var block Block
 	gobDecoder := gob.NewDecoder(bytes.NewReader(data))
 	err := gobDecoder.Decode(&block)
+	if err != nil {
+		log.Panic(err)
+	}
 	return &block
 }
 
