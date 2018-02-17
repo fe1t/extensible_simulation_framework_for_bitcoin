@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/gob"
 	"log"
 	"time"
@@ -9,11 +10,38 @@ import (
 
 // Block struct
 type Block struct {
-	Timestamp int64
-	PrevHash  []byte
-	Data      []byte
-	Hash      []byte
-	Nonce     int
+	Timestamp    int64
+	Transactions []*Transaction
+	PrevHash     []byte
+	Hash         []byte
+	Nonce        int
+}
+
+func (block *Block) HashTransactions() []byte {
+	var (
+		txHashes [][]byte
+		txHash   [32]byte
+	)
+	for _, tx := range block.Transactions {
+		txHashes = append(txHashes, tx.ID)
+	}
+	txHash = sha256.Sum256(bytes.Join(txHashes, []byte{}))
+	return txHash[:]
+}
+
+// NewBlock creates simple block
+func NewBlock(transactions []*Transaction, prevHash []byte) *Block {
+	block := &Block{time.Now().Unix(), transactions, prevHash, []byte{}, 0}
+	pow := NewProofOfWork(block)
+	nonce, hash := pow.Run()
+	block.Nonce = nonce
+	block.Hash = hash[:]
+	return block
+}
+
+// NewGenesisBlock creates simple block without defining prevHash
+func NewGenesisBlock(coinbase *Transaction) *Block {
+	return NewBlock([]*Transaction{coinbase}, []byte{})
 }
 
 // Serialize block header to byte array
@@ -36,19 +64,4 @@ func Deserialize(data []byte) *Block {
 		log.Panic(err)
 	}
 	return &block
-}
-
-// NewBlock creates simple block
-func NewBlock(data string, prevHash []byte) *Block {
-	block := &Block{time.Now().Unix(), prevHash, []byte(data), []byte{}, 0}
-	pow := NewProofOfWork(block)
-	nonce, hash := pow.Run()
-	block.Nonce = nonce
-	block.Hash = hash[:]
-	return block
-}
-
-// NewGenesisBlock creates simple block without defining prevHash
-func NewGenesisBlock() *Block {
-	return NewBlock("New Genesis Block", []byte{})
 }
