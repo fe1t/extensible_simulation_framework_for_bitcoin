@@ -1,7 +1,10 @@
 package main
 
 import (
+	"bytes"
+	"crypto/ecdsa"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -51,9 +54,9 @@ func (i *BlockchainIterator) Next() *Block {
 	return block
 }
 
-func (bc *Blockchain) FindSpendableOutputs(address string, amount int) (int, map[string][]int) {
+func (bc *Blockchain) FindSpendableOutputs(pubKeyHash []byte, amount int) (int, map[string][]int) {
 	var spendableOutputs = make(map[string][]int)
-	unspentTXs := bc.FindUnspentTransactions(address)
+	unspentTXs := bc.FindUnspentTransactions(pubKeyHash)
 	acc := 0
 
 Work:
@@ -61,7 +64,7 @@ Work:
 		txID := hex.EncodeToString(tx.ID)
 
 		for outIdx, out := range tx.Vout {
-			if out.CanBeUnlockedWith(address) && acc < amount {
+			if out.IsLockedWithKey(pubKeyHash) && acc < amount {
 				acc += out.Value
 				spendableOutputs[txID] = append(spendableOutputs[txID], outIdx)
 				if acc >= amount {
@@ -76,6 +79,13 @@ Work:
 
 func (bc *Blockchain) MineBlock(transactions []*Transaction) {
 	var lastHash []byte
+
+	for _, tx := range transactions {
+		if !bc.VerifyTransaction(tx) {
+			log.Panic("ERROR: Invalid transaction")
+		}
+	}
+
 	err := bc.db.View(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket([]byte(blockBucket))
 		lastHash = bucket.Get([]byte("l"))
@@ -94,37 +104,109 @@ func (bc *Blockchain) MineBlock(transactions []*Transaction) {
 	bc.tip = newBlock.Hash
 }
 
-func NewUTXOTransaction(from, to string, amount int, bc *Blockchain) *Transaction {
-	var (
-		inTxs  []TXInput
-		outTxs []TXOutput
-	)
-	acc, spendableOutputs := bc.FindSpendableOutputs(from, amount)
-	if acc < amount {
-		log.Panic("ERROR: Not enough funds")
+func (bc *Blockchain) FindUnspentTransactions(pubKeyHash []byte) []Transaction {
+	var utxs []Transaction
+	spentUTXOs := make(map[string][]int)
+	bci := bc.Iterator()
+
+	for {
+		block := bci.Next()
+
+		for _, tx := range block.Transactions {
+			txID := hex.EncodeToString(tx.ID)
+
+		Outputs:
+			for outIdx, outTx := range tx.Vout {
+				if spentUTXOs[txID] != nil {
+					for _, spentOut := range spentUTXOs[txID] {
+						if outIdx == spentOut {
+							continue Outputs
+						}
+					}
+				}
+				if outTx.IsLockedWithKey(pubKeyHash) {
+					utxs = append(utxs, *tx)
+				}
+			}
+			if !tx.IsCoinbase() {
+				for _, inTx := range tx.Vin {
+					if inTx.UsesKey(pubKeyHash) {
+						inTxID := hex.EncodeToString(inTx.Txid)
+						spentUTXOs[inTxID] = append(spentUTXOs[inTxID], inTx.Vout)
+					}
+				}
+			}
+		}
+
+		if len(block.PrevHash) == 0 {
+			break
+		}
 	}
 
-	// Build inputs
-	for txID, outs := range spendableOutputs {
-		txid, err := hex.DecodeString(txID)
+	return utxs
+}
+
+func (bc *Blockchain) FindUTXO(pubKeyHash []byte) []TXOutput {
+	var UTXOs []TXOutput
+	unspentTransactions := bc.FindUnspentTransactions(pubKeyHash)
+
+	for _, tx := range unspentTransactions {
+		for _, utxo := range tx.Vout {
+			if utxo.IsLockedWithKey(pubKeyHash) { // maybe no need to check ?
+				UTXOs = append(UTXOs, utxo)
+			}
+		}
+	}
+
+	return UTXOs
+}
+
+func (bc *Blockchain) FindTransaction(ID []byte) (Transaction, error) {
+	bci := bc.Iterator()
+
+	for {
+		block := bci.Next()
+
+		for _, tx := range block.Transactions {
+			if bytes.Compare(tx.ID, ID) == 0 {
+				return *tx, nil
+			}
+		}
+
+		if len(block.PrevHash) == 0 {
+			break
+		}
+	}
+
+	return Transaction{}, errors.New("Transaction is not found")
+}
+
+func (bc *Blockchain) SignTransaction(tx *Transaction, privKey ecdsa.PrivateKey) {
+	prevTXs := make(map[string]Transaction)
+
+	for _, inTx := range tx.Vin {
+		prevTX, err := bc.FindTransaction(inTx.Txid)
 		if err != nil {
 			log.Panic(err)
 		}
+		prevTXs[hex.EncodeToString(prevTX.ID)] = prevTX
+	}
 
-		for _, out := range outs {
-			inTx := TXInput{txid, out, from}
-			inTxs = append(inTxs, inTx)
+	tx.Sign(privKey, prevTXs)
+}
+
+func (bc *Blockchain) VerifyTransaction(tx *Transaction) bool {
+	prevTXs := make(map[string]Transaction)
+
+	for _, inTx := range tx.Vin {
+		prevTX, err := bc.FindTransaction(inTx.Txid)
+		if err != nil {
+			log.Panic(err)
 		}
+		prevTXs[hex.EncodeToString(prevTX.ID)] = prevTX
 	}
 
-	// Build outputs
-	outTxs = append(outTxs, TXOutput{amount, to})
-	if acc > amount {
-		outTxs = append(outTxs, TXOutput{acc - amount, from})
-	}
-	tx := Transaction{nil, inTxs, outTxs}
-	tx.SetID()
-	return &tx
+	return tx.Verify(prevTXs)
 }
 
 func dbExists() bool {
