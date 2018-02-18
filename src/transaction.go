@@ -236,3 +236,27 @@ func NewCoinbaseTX(to, data string) *Transaction {
 	return &tx
 
 }
+
+func SerializeTransaction(tx Transaction) []byte {
+	var buffer bytes.Buffer
+
+	gobEncoder := gob.NewEncoder(&buffer)
+	err := gobEncoder.Encode(tx)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	return buffer.Bytes()
+}
+
+func DeserializeTransaction(data []byte) Transaction {
+	var tx Transaction
+
+	gobDecoder := gob.NewDecoder(bytes.NewReader(data))
+	err := gobDecoder.Decode(&tx)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	return tx
+}
