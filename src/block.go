@@ -14,6 +14,7 @@ type Block struct {
 	PrevHash     []byte
 	Hash         []byte
 	Nonce        int
+	Height       int
 }
 
 func (block *Block) HashTransactions() []byte {
@@ -26,8 +27,8 @@ func (block *Block) HashTransactions() []byte {
 }
 
 // NewBlock creates simple block
-func NewBlock(transactions []*Transaction, prevHash []byte) *Block {
-	block := &Block{time.Now().Unix(), transactions, prevHash, []byte{}, 0}
+func NewBlock(transactions []*Transaction, prevHash []byte, height int) *Block {
+	block := &Block{time.Now().Unix(), transactions, prevHash, []byte{}, 0, height}
 	pow := NewProofOfWork(block)
 	nonce, hash := pow.Run()
 	block.Nonce = nonce
@@ -37,7 +38,7 @@ func NewBlock(transactions []*Transaction, prevHash []byte) *Block {
 
 // NewGenesisBlock creates simple block without defining prevHash
 func NewGenesisBlock(coinbase *Transaction) *Block {
-	return NewBlock([]*Transaction{coinbase}, []byte{})
+	return NewBlock([]*Transaction{coinbase}, []byte{}, 0)
 }
 
 // Serialize block header to byte array

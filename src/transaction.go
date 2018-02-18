@@ -120,16 +120,16 @@ func (tx *Transaction) Sign(privKey ecdsa.PrivateKey, prevTxs map[string]Transac
 		prevTx := prevTxs[hex.EncodeToString(inTx.Txid)]
 		trimmedTx.Vin[txid].Signature = nil
 		trimmedTx.Vin[txid].PublicKey = prevTx.Vout[inTx.Vout].PublicKeyHash
-		trimmedTx.ID = trimmedTx.Hash()
-		trimmedTx.Vin[txid].PublicKey = nil
 
-		r, s, err := ecdsa.Sign(rand.Reader, &privKey, trimmedTx.ID)
+		dataToSign := fmt.Sprintf("%x\n", trimmedTx)
+		r, s, err := ecdsa.Sign(rand.Reader, &privKey, []byte(dataToSign))
 		if err != nil {
 			log.Panic(err)
 		}
 		signature := append(r.Bytes(), s.Bytes()...)
 
 		tx.Vin[txid].Signature = signature
+		trimmedTx.Vin[txid].PublicKey = nil
 	}
 }
 
@@ -151,8 +151,6 @@ func (tx *Transaction) Verify(prevTxs map[string]Transaction) bool {
 		prevTx := prevTxs[hex.EncodeToString(inTx.Txid)]
 		trimmedTx.Vin[txid].Signature = nil
 		trimmedTx.Vin[txid].PublicKey = prevTx.Vout[inTx.Vout].PublicKeyHash
-		trimmedTx.ID = trimmedTx.Hash()
-		trimmedTx.Vin[txid].PublicKey = nil
 
 		r := big.Int{}
 		s := big.Int{}
@@ -167,23 +165,21 @@ func (tx *Transaction) Verify(prevTxs map[string]Transaction) bool {
 		y.SetBytes(inTx.PublicKey[(keyLen / 2):])
 
 		rawPubKey := ecdsa.PublicKey{curve, &x, &y}
-		if ecdsa.Verify(&rawPubKey, trimmedTx.ID, &r, &s) == false {
+		dataToVerify := fmt.Sprintf("%x\n", trimmedTx)
+
+		if ecdsa.Verify(&rawPubKey, []byte(dataToVerify), &r, &s) == false {
 			return false
 		}
+		trimmedTx.Vin[txid].PublicKey = nil
 	}
 	return true
 }
 
-func NewUTXOTransaction(from, to string, amount int, utxoSet *UTXOSet) *Transaction {
+func NewUTXOTransaction(wallet *Wallet, to string, amount int, utxoSet *UTXOSet) *Transaction {
 	var (
 		inTxs  []TXInput
 		outTxs []TXOutput
 	)
-	wallets, err := NewWallets()
-	if err != nil {
-		log.Panic(err)
-	}
-	wallet := wallets.GetWallet(from)
 	pubKeyHash := HashPubKey(wallet.PublicKey)
 	acc, spendableOutputs := utxoSet.FindSpendableOutputs(pubKeyHash, amount)
 	if acc < amount {
@@ -204,6 +200,7 @@ func NewUTXOTransaction(from, to string, amount int, utxoSet *UTXOSet) *Transact
 	}
 
 	// Build outputs
+	from := fmt.Sprintf("%s", wallet.GetAddress())
 	outTxs = append(outTxs, *NewTXOutput(amount, to))
 	if acc > amount {
 		outTxs = append(outTxs, *NewTXOutput(acc-amount, from))

@@ -12,7 +12,6 @@ import (
 )
 
 const (
-	walletFile     = "wallet.dat"
 	version        = byte(0x00)
 	checksumLength = 4
 )

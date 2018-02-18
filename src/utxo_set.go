@@ -70,6 +70,27 @@ func (u UTXOSet) FindUTXO(pubKeyHash []byte) []TXOutput {
 	return utxos
 }
 
+func (u UTXOSet) CountTransactions() int {
+	db := u.bc.db
+	counter := 0
+
+	err := db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(utxoBucket))
+		c := b.Cursor()
+
+		for k, _ := c.First(); k != nil; k, _ = c.Next() {
+			counter++
+		}
+
+		return nil
+	})
+	if err != nil {
+		log.Panic(err)
+	}
+
+	return counter
+}
+
 func (u UTXOSet) Reindex() {
 	db := u.bc.db
 	bucketName := []byte(utxoBucket)
@@ -108,34 +129,32 @@ func (u UTXOSet) Reindex() {
 	}
 }
 
-/*
 func (u UTXOSet) Update(block *Block) {
 	db := u.bc.db
-	bucketName := []byte(utxoBucket)
 
-	err := db.Update(func(txBolt *bolt.Tx) error {
-		bucket := txBolt.Bucket(bucketName)
+	err := db.Update(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket([]byte(utxoBucket))
 
 		for _, tx := range block.Transactions {
-			if !tx.IsCoinbase() {
+			if tx.IsCoinbase() == false {
 				for _, inTx := range tx.Vin {
-					updatedOutputs := TXOutputs{}
-					byteOutputs := bucket.Get(inTx.Txid)
-					oldOutputs := DeserializeOutputs(byteOutputs)
+					updatedOuts := TXOutputs{}
+					outsBytes := bucket.Get(inTx.Txid)
+					outs := DeserializeOutputs(outsBytes)
 
-					for outIdx, outTx := range oldOutputs.Outputs { // pretty weired
+					for outIdx, outTx := range outs.Outputs {
 						if outIdx != inTx.Vout {
-							updatedOutputs.Outputs = append(updatedOutputs.Outputs, outTx)
+							updatedOuts.Outputs = append(updatedOuts.Outputs, outTx)
 						}
 					}
 
-					if len(updatedOutputs.Outputs) == 0 {
+					if len(updatedOuts.Outputs) == 0 {
 						err := bucket.Delete(inTx.Txid)
 						if err != nil {
 							log.Panic(err)
 						}
 					} else {
-						err := bucket.Put(inTx.Txid, SerializeOutputs(updatedOutputs))
+						err := bucket.Put(inTx.Txid, SerializeOutputs(updatedOuts))
 						if err != nil {
 							log.Panic(err)
 						}
@@ -143,64 +162,13 @@ func (u UTXOSet) Update(block *Block) {
 
 				}
 			}
+
 			newOutputs := TXOutputs{}
 			for _, outTx := range tx.Vout {
 				newOutputs.Outputs = append(newOutputs.Outputs, outTx)
 			}
+
 			err := bucket.Put(tx.ID, SerializeOutputs(newOutputs))
-			if err != nil {
-				log.Panic(err)
-			}
-		}
-		return nil
-	})
-
-	if err != nil {
-		log.Panic(err)
-	}
-}
-*/
-
-func (u UTXOSet) Update(block *Block) {
-	db := u.bc.db
-
-	err := db.Update(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(utxoBucket))
-
-		for _, tx := range block.Transactions {
-			if tx.IsCoinbase() == false {
-				for _, vin := range tx.Vin {
-					updatedOuts := TXOutputs{}
-					outsBytes := b.Get(vin.Txid)
-					outs := DeserializeOutputs(outsBytes)
-
-					for outIdx, out := range outs.Outputs {
-						if outIdx != vin.Vout {
-							updatedOuts.Outputs = append(updatedOuts.Outputs, out)
-						}
-					}
-
-					if len(updatedOuts.Outputs) == 0 {
-						err := b.Delete(vin.Txid)
-						if err != nil {
-							log.Panic(err)
-						}
-					} else {
-						err := b.Put(vin.Txid, SerializeOutputs(updatedOuts))
-						if err != nil {
-							log.Panic(err)
-						}
-					}
-
-				}
-			}
-
-			newOutputs := TXOutputs{}
-			for _, out := range tx.Vout {
-				newOutputs.Outputs = append(newOutputs.Outputs, out)
-			}
-
-			err := b.Put(tx.ID, SerializeOutputs(newOutputs))
 			if err != nil {
 				log.Panic(err)
 			}
