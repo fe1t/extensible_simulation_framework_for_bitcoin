@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	version        = byte(0x00)
+	versionAddress = byte(0x00)
 	checksumLength = 4
 )
 
@@ -27,7 +27,7 @@ func NewWallet() *Wallet {
 }
 
 func (w Wallet) GetAddress() []byte {
-	versionPublicKey := append([]byte{version}, HashPubKey(w.PublicKey)...)
+	versionPublicKey := append([]byte{versionAddress}, HashPubKey(w.PublicKey)...)
 	versionPublicKeyChecksum := append(versionPublicKey, GetChecksum(versionPublicKey)...)
 	return Base58Encode(versionPublicKeyChecksum)
 }
