@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/gob"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net"
@@ -18,7 +19,7 @@ type version struct {
 const (
 	protocol      = "tcp"
 	nodeVersion   = 1
-	commandLength = "12"
+	commandLength = 12
 )
 
 var (
@@ -48,10 +49,32 @@ func StartServer(nodeID, minerAddress string) {
 func sendVersion(addr string, bc *Blockchain) {
 	bestHeight := bc.GetLastBlockHeight()
 	payload := gobEncode(version{nodeVersion, bestHeight, nodeAddress})
-
 	request := append(commandToBytes("version"), payload...)
-
 	sendData(addr, request)
+}
+
+func sendData(address string, request []byte) {
+	conn, err := net.Dial(protocol, address)
+	if err != nil {
+		fmt.Printf("%s is not available\n", address)
+		var updatedNodes []string
+
+		for _, node := range knownNodes {
+			if node != address {
+				updatedNodes = append(updatedNodes, node)
+			}
+		}
+
+		knownNodes = updatedNodes
+		return
+	}
+
+	defer conn.Close()
+
+	_, err = io.Copy(conn, bytes.NewReader(request))
+	if err != nil {
+		log.Panic(err)
+	}
 }
 
 func handleConnection(conn net.Conn, bc *Blockchain) {
@@ -60,6 +83,7 @@ func handleConnection(conn net.Conn, bc *Blockchain) {
 		log.Panic(err)
 	}
 	command := bytesToCommand(request[:commandLength])
+
 	fmt.Printf("Received %s command\n", command)
 
 	switch command {
@@ -82,6 +106,16 @@ func handleConnection(conn net.Conn, bc *Blockchain) {
 	}
 
 	conn.Close()
+}
+
+func commandToBytes(commandString string) []byte {
+	var commandBytes [12]byte
+	copy(commandBytes[:], commandString)
+	return commandBytes[:]
+}
+
+func bytesToCommand(commandBytes []byte) string {
+	return string(commandBytes)
 }
 
 func gobEncode(data interface{}) []byte {
