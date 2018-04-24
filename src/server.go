@@ -72,10 +72,12 @@ func StartServer(nodeID, minerAddress string) {
 
 	defer ln.Close()
 
-	bc := NewBlockchain(nodeID)
+	if Bc == nil {
+		Bc = NewBlockchain(nodeID)
+	}
 
 	if nodeAddress != knownNodes[0] {
-		sendVersion(knownNodes[0], bc)
+		sendVersion(knownNodes[0], Bc)
 	}
 
 	for {
@@ -83,7 +85,7 @@ func StartServer(nodeID, minerAddress string) {
 		if err != nil {
 			log.Panic(err)
 		}
-		go handleConnection(conn, bc)
+		go handleConnection(conn, Bc)
 	}
 }
 
@@ -156,7 +158,16 @@ func handleBlock(request []byte, bc *Blockchain) {
 	bc.AddBlock(block)
 
 	fmt.Printf("Added block %x\n", block.Hash)
+	blockHashes := bc.GetBlockHashes()
 
+	// better check logic
+	if nodeAddress == knownNodes[0] {
+		for _, node := range knownNodes {
+			if node != nodeAddress {
+				sendInventory(node, "block", blockHashes)
+			}
+		}
+	}
 	if len(blocksInTransit) > 0 {
 		blockHash := blocksInTransit[0]
 		sendGetData(payload.AddrFrom, "block", blockHash)

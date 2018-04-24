@@ -6,6 +6,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
+	"fmt"
 	"log"
 
 	"golang.org/x/crypto/ripemd160"
@@ -33,6 +34,11 @@ func (w Wallet) GetAddress() []byte {
 }
 
 func ValidateAddress(address string) bool {
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Println("recover from", r)
+		}
+	}()
 	pubKeyHash := Base58Decode([]byte(address))
 	actualChecksum := pubKeyHash[len(pubKeyHash)-checksumLength:]
 	version := pubKeyHash[0]
