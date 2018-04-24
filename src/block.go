@@ -1,21 +1,41 @@
 package main
 
 import (
+	"bytes"
+	"encoding/gob"
+	"log"
 	"time"
+
+	"github.com/cbergoon/merkletree"
 )
 
 // Block struct
 type Block struct {
-	Timestamp int64
-	PrevHash  []byte
-	Data      []byte
-	Hash      []byte
-	Nonce     int
+	Timestamp    int64
+	Transactions []*Transaction
+	PrevHash     []byte
+	Hash         []byte
+	Nonce        int
+	Height       int
+}
+
+// HashTransactions returns a hash of the transactions in the block
+func (b *Block) HashTransactions() []byte {
+	var transactions []merkletree.Content
+
+	for _, tx := range b.Transactions {
+		transactions = append(transactions, NodeContent{tx.ID})
+	}
+
+	t, _ := merkletree.NewTree(transactions)
+	mr := t.MerkleRoot()
+
+	return mr
 }
 
 // NewBlock creates simple block
-func NewBlock(data string, prevHash []byte) *Block {
-	block := &Block{time.Now().Unix(), prevHash, []byte(data), []byte{}, 0}
+func NewBlock(transactions []*Transaction, prevHash []byte, height int) *Block {
+	block := &Block{time.Now().Unix(), transactions, prevHash, []byte{}, 0, height}
 	pow := NewProofOfWork(block)
 	nonce, hash := pow.Run()
 	block.Nonce = nonce
@@ -24,6 +44,28 @@ func NewBlock(data string, prevHash []byte) *Block {
 }
 
 // NewGenesisBlock creates simple block without defining prevHash
-func NewGenesisBlock() *Block {
-	return NewBlock("New Genesis Block", []byte{})
+func NewGenesisBlock(coinbase *Transaction) *Block {
+	return NewBlock([]*Transaction{coinbase}, []byte{}, 0)
+}
+
+// Serialize block header to byte array
+func Serialize(block *Block) []byte {
+	var result bytes.Buffer
+	gobEncoder := gob.NewEncoder(&result)
+	err := gobEncoder.Encode(block)
+	if err != nil {
+		log.Panic(err)
+	}
+	return result.Bytes()
+}
+
+// Deserialize byte array to block header
+func Deserialize(data []byte) *Block {
+	var block Block
+	gobDecoder := gob.NewDecoder(bytes.NewReader(data))
+	err := gobDecoder.Decode(&block)
+	if err != nil {
+		log.Panic(err)
+	}
+	return &block
 }
