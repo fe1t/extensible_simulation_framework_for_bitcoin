@@ -5,6 +5,8 @@ import (
 	"encoding/gob"
 	"log"
 	"time"
+
+	"github.com/cbergoon/merkletree"
 )
 
 // Block struct
@@ -17,13 +19,18 @@ type Block struct {
 	Height       int
 }
 
-func (block *Block) HashTransactions() []byte {
-	var transactions [][]byte
-	for _, tx := range block.Transactions {
-		transactions = append(transactions, SerializeTransaction(*tx))
+// HashTransactions returns a hash of the transactions in the block
+func (b *Block) HashTransactions() []byte {
+	var transactions []merkletree.Content
+
+	for _, tx := range b.Transactions {
+		transactions = append(transactions, NodeContent{tx.ID})
 	}
-	merkleTree := NewMerkleTree(transactions)
-	return merkleTree.RootNode.Data
+
+	t, _ := merkletree.NewTree(transactions)
+	mr := t.MerkleRoot()
+
+	return mr
 }
 
 // NewBlock creates simple block

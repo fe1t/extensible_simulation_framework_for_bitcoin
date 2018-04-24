@@ -48,13 +48,19 @@ func (tx Transaction) Serialize() []byte {
 	return encoded.Bytes()
 }
 
+// ToByteStream to prevent encoding/gob non-deterministic
+func (tx Transaction) ToByteStream() []byte {
+	return []byte([]byte(fmt.Sprintf("%v", tx)))
+}
+
 func (tx *Transaction) Hash() []byte {
 	var hash [32]byte
 
 	txCopy := *tx
 	txCopy.ID = []byte{}
 
-	hash = sha256.Sum256(txCopy.Serialize())
+	// hash = sha256.Sum256(txCopy.Serialize())
+	hash = sha256.Sum256(txCopy.ToByteStream())
 
 	return hash[:]
 }
