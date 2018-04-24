@@ -15,7 +15,7 @@ import (
 const (
 	dbFile              = "blockchain_%s.db"
 	blockBucket         = "blocks"
-	genesisCoinbaseData = "KU-Coin incoming"
+	genesisCoinbaseData = "KU-Coin Genesis Data"
 )
 
 // Blockchain struct

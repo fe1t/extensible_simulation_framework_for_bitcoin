@@ -282,13 +282,29 @@ func handleTx(request []byte, bc *Blockchain) {
 		if len(mempool) >= 2 && len(rewardToAddress) > 0 {
 		MineTransactions:
 			var txs []*Transaction
+			var usedTXInput [][]byte
 
 			for id := range mempool {
 				tx := mempool[id]
-				if bc.VerifyTransaction(&tx) {
-					txs = append(txs, &tx)
+				if hasSameTXInput(usedTXInput, tx.Vin) {
+					delete(mempool, id)
+				} else {
+					verified := bc.VerifyTransaction(&tx)
+					if verified {
+						txs = append(txs, &tx)
+						for i := range tx.Vin {
+							usedTXInput = append(usedTXInput, tx.Vin[i].Txid)
+						}
+					}
 				}
 			}
+
+			// for id := range mempool {
+			// 	tx := mempool[id]
+			// 	if bc.VerifyTransaction(&tx) {
+			// 		txs = append(txs, &tx)
+			// 	}
+			// }
 
 			if len(txs) == 0 {
 				fmt.Println("All transactions are invalid! Waiting for new ones...")
@@ -454,4 +470,19 @@ func gobEncode(data interface{}) []byte {
 	}
 
 	return buff.Bytes()
+}
+
+func testSerialization(s1, s2 []byte) bool {
+	return bytes.Equal(s1, s2)
+}
+
+func hasSameTXInput(listByte [][]byte, inputs []TXInput) bool {
+	for i := range inputs {
+		for _, val := range listByte {
+			if bytes.Compare(val, inputs[i].Txid) == 0 {
+				return true
+			}
+		}
+	}
+	return false
 }
