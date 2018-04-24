@@ -1,4 +1,5 @@
 # blockchain_programming_in_golang
 
-jeiwan's source code
-https://github.com/Jeiwan/blockchain_go
+based-on jeiwan
+fixed many bugs there
+trying to finish real p2p
