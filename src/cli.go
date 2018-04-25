@@ -292,10 +292,19 @@ func (i *impl) sendInput() {
 	)
 	fmt.Print("From address: ")
 	fmt.Scanf("%s", &fromAddr)
+	if fromAddr == "\x02" {
+		return
+	}
 	fmt.Print("To address: ")
 	fmt.Scanf("%s", &toAddr)
+	if toAddr == "\x02" {
+		return
+	}
 	fmt.Print("Amount coins (int): ")
 	fmt.Scanf("%s", &amountS)
+	if amountS == "\x02" {
+		return
+	}
 	amount, err := strconv.Atoi(amountS)
 	if err != nil {
 		fmt.Printf("Cannot parse %s to integer\n", amountS)
@@ -311,6 +320,8 @@ func (i *impl) sendInput() {
 			send(fromAddr, toAddr, amount, NODE_ID, false)
 			return
 		case "n":
+			return
+		case "\x02":
 			return
 		default:
 			fmt.Print("Confirm (y/n): ")
