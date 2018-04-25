@@ -468,7 +468,8 @@ func send(from, to string, amount int, nodeID string, mineNow bool) {
 		newBlock := Bc.MineBlock(txs)
 		UTXOSet.Update(newBlock)
 	} else {
-		sendTx(knownNodes[0], tx)
+		sendTx("all", tx)
+		// sendTx(knownNodes[0], tx)
 	}
 
 	fmt.Println("Success!")
