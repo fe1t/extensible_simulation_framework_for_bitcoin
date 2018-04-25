@@ -248,15 +248,12 @@ func (i *impl) readInput() {
 }
 
 func (i *impl) createwalletInput() {
+	defer recoverer()
 	createWallet(NODE_ID)
-	defer func() {
-		if r := recover(); r != nil {
-			fmt.Println("Recovery from", r)
-		}
-	}()
 }
 
 func (i *impl) getbalanceInput() {
+	defer recoverer()
 	var address string
 	fmt.Print("Address: ")
 	fmt.Scanf("%s", &address)
@@ -264,39 +261,28 @@ func (i *impl) getbalanceInput() {
 		return
 	}
 	getBalance(address, NODE_ID)
-	defer func() {
-		if r := recover(); r != nil {
-			fmt.Println("Recovery from", r)
-		}
-	}()
 }
 
 func (i *impl) listaddressesInput() {
+	defer recoverer()
 	fmt.Println(" > Here are your available addresses:")
 	listAddresses(NODE_ID)
-	defer func() {
-		if r := recover(); r != nil {
-			fmt.Println("Recovery from", r)
-		}
-	}()
 }
 
 func (i *impl) printchainInput() {
+	defer recoverer()
 	fmt.Println(" > Your blockchain looks like this:")
 	printChain(NODE_ID)
-	defer func() {
-		if r := recover(); r != nil {
-			fmt.Println("Recovery from", r)
-		}
-	}()
 }
 
 func (i *impl) reindexutxoInput() {
+	defer recoverer()
 	fmt.Println(" > Reindexing the UTXO set")
 	reindexUTXO(NODE_ID)
 }
 
 func (i *impl) sendInput() {
+	defer recoverer()
 	var (
 		fromAddr     string
 		toAddr       string
@@ -322,11 +308,6 @@ func (i *impl) sendInput() {
 		confirmation = scanner.Text()
 		switch confirmation {
 		case "y":
-			defer func() {
-				if r := recover(); r != nil {
-					fmt.Println("Recovery from", r)
-				}
-			}()
 			send(fromAddr, toAddr, amount, NODE_ID, false)
 			return
 		case "n":
@@ -376,11 +357,6 @@ func createWallet(nodeID string) {
 }
 
 func getBalance(address, nodeID string) {
-	defer func() {
-		if r := recover(); r != nil {
-			fmt.Println("Recover from", r)
-		}
-	}()
 	if !ValidateAddress(address) {
 		log.Panic("ERROR: Address is not valid")
 	}
@@ -442,11 +418,6 @@ func printChain(nodeID string) {
 }
 
 func reindexUTXO(nodeID string) {
-	defer func() {
-		if r := recover(); r != nil {
-			fmt.Println("recover from", r)
-		}
-	}()
 	if Bc == nil {
 		Bc = NewBlockchain(nodeID)
 	}
@@ -504,6 +475,13 @@ func (tf tableFormatter) DumpUsage(commandUsages []commandUsage) {
 	}
 	table.Render()
 }
+
 func outputInstructionline() {
 	fmt.Fprintf(os.Stdout, "\n%s\n\n", instructionLine)
+}
+
+func recoverer() {
+	if r := recover(); r != nil {
+		fmt.Println("Recover from:", r)
+	}
 }
