@@ -149,13 +149,10 @@ func configServer() error {
 	memberlistConfig.UDPBufferSize = UDPBufferSize
 	memberlistConfig.Name = nodeAddress
 
-	eventCh := make(chan serf.Event, 16)
 	serfConfig := serf.DefaultConfig()
 	serfConfig.NodeName = nodeAddress
-	serfConfig.EventCh = eventCh
 	serfConfig.RejoinAfterLeave = true
 	serfConfig.QuerySizeLimit = 1500
-	// serfConfig.EventCh = serfEvents
 	serfConfig.MemberlistConfig = memberlistConfig
 
 	m, err := serf.Create(serfConfig)
@@ -517,10 +514,9 @@ func handleVersion(request []byte, bc *Blockchain) {
 func sendBlock(addr string, b *Block) {
 	payload := gobEncode(block{nodeAddress, addr, Serialize(b)})
 	request := append(commandToBytes("block"), payload...)
-	broadcasts.QueueBroadcast(&broadcast{
-		msg:    request,
-		notify: nil,
-	})
+	if _, err := thisNode.Query("block", request, nil); err != nil {
+		log.Panic(err)
+	}
 }
 
 func sendData(address string, request []byte) {
