@@ -71,7 +71,7 @@ const (
 	protocol      = "tcp"
 	nodeVersion   = 1
 	commandLength = 12
-	baseAddress   = "158.108.227.103"
+	baseAddress   = "127.0.0.1"
 )
 
 var (
