@@ -10,6 +10,7 @@ import (
 	"net"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/clockworksoul/smudge"
 )
@@ -88,6 +89,7 @@ func (m MyStatusListener) OnChange(node *smudge.Node, status smudge.NodeStatus) 
 
 func (m MyBroadcastListener) OnBroadcast(b *smudge.Broadcast) {
 	// broadcastMsg from b.Origin().Address()
+	fmt.Println("OnBroadcast triggered")
 	go handleConnection(b.Bytes(), Bc)
 }
 
@@ -104,6 +106,8 @@ func ConfigServer() error {
 	smudge.SetHeartbeatMillis(500)
 	smudge.SetMaxBroadcastBytes(2000)
 	smudge.SetLogThreshold(smudge.LogOff)
+	// smudge.SetMulticastEnabled(false)
+	smudge.SetClusterName("KU")
 
 	smudge.AddStatusListener(MyStatusListener{})
 	smudge.AddBroadcastListener(MyBroadcastListener{})
@@ -125,10 +129,13 @@ func ConfigServer() error {
 		smudge.Begin()
 	}()
 
+	time.Sleep(time.Second * 5)
+
 	// Handle SIGINT and SIGTERM.
 	// quit := make(chan os.Signal, 2)
 	// signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	// <-quit
+
 	return nil
 }
 
