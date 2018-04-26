@@ -227,12 +227,14 @@ func handleBlock(request []byte, bc *Blockchain) {
 	block := Deserialize(blockData)
 
 	fmt.Println("Recevied a new block!")
+
+	//TODO: verify block before adding
 	bc.AddBlock(block)
 
 	fmt.Printf("Added block %x\n", block.Hash)
 	blockHashes := bc.GetBlockHashes()
 
-	// better check logic
+	// TODO: use broadcasr instead
 	if nodeAddress == knownNodes[0] {
 		for _, node := range knownNodes {
 			if node != nodeAddress {
@@ -240,6 +242,7 @@ func handleBlock(request []byte, bc *Blockchain) {
 			}
 		}
 	}
+
 	if len(blocksInTransit) > 0 {
 		blockHash := blocksInTransit[0]
 		sendGetData(payload.AddrFrom, "block", blockHash)
