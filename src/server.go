@@ -6,13 +6,15 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net"
 	"strconv"
+	"strings"
 	"sync"
-	"time"
 
 	"github.com/clockworksoul/smudge"
+	"github.com/davecgh/go-spew/spew"
 )
 
 type addr struct {
@@ -89,8 +91,8 @@ func (m MyStatusListener) OnChange(node *smudge.Node, status smudge.NodeStatus) 
 
 func (m MyBroadcastListener) OnBroadcast(b *smudge.Broadcast) {
 	// broadcastMsg from b.Origin().Address()
-	fmt.Println("OnBroadcast triggered")
-	go handleConnection(b.Bytes(), Bc)
+	// fmt.Println("OnBroadcast triggered")
+	// go handleConnection(b.Bytes(), Bc)
 }
 
 // ConfigServer configuration for Smudge Library
@@ -129,8 +131,6 @@ func ConfigServer() error {
 		smudge.Begin()
 	}()
 
-	time.Sleep(time.Second * 5)
-
 	// Handle SIGINT and SIGTERM.
 	// quit := make(chan os.Signal, 2)
 	// signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
@@ -152,7 +152,27 @@ func StartServer(nodeID, minerAddress string) {
 		wg.Done()
 	}()
 	wg.Wait()
+	if err != nil {
+		log.Panic(err)
+	}
 
+	go func() {
+		ln, err2 := net.Listen(protocol, fmt.Sprintf(":1%s", NODE_ID))
+		if err2 != nil {
+			err = err2
+			return
+		}
+		defer ln.Close()
+		for {
+			conn, err2 := ln.Accept()
+			if err2 != nil {
+				err = err2
+				return
+			}
+			go handleConnection(conn, Bc)
+		}
+		// defer ln.Close()
+	}()
 	if err != nil {
 		log.Panic(err)
 	}
@@ -168,7 +188,11 @@ func StartServer(nodeID, minerAddress string) {
 	// }
 }
 
-func handleConnection(request []byte, bc *Blockchain) {
+func handleConnection(conn net.Conn, bc *Blockchain) {
+	request, err := ioutil.ReadAll(conn)
+	if err != nil {
+		log.Panic(err)
+	}
 	command := bytesToCommand(request[:commandLength])
 
 	fmt.Printf("Received %s command\n", command)
@@ -455,10 +479,13 @@ func handleVersion(request []byte, bc *Blockchain) {
 	if err != nil {
 		log.Panic(err)
 	}
+	spew.Dump(payload)
+
 	if payload.AddrTo != "all" && payload.AddrTo != nodeAddress {
 		return
 	}
 
+	fmt.Println("Hello")
 	myHeight := bc.GetLastBlockHeight()
 	requestHeight := payload.BlockHeight
 
@@ -476,60 +503,69 @@ func handleVersion(request []byte, bc *Blockchain) {
 func sendBlock(addr string, b *Block) {
 	payload := gobEncode(block{nodeAddress, addr, Serialize(b)})
 	request := append(commandToBytes("block"), payload...)
-	smudge.BroadcastBytes(request)
-	// sendData(addr, request)
+	prepareData(addr, request)
 }
 
-func sendData(address string, request []byte) {
-	conn, err := net.Dial(protocol, address)
-	if err != nil {
-		fmt.Printf("%s is not available\n", address)
-		var updatedNodes []string
-
-		for _, node := range knownNodes {
-			if node != address {
-				updatedNodes = append(updatedNodes, node)
+func prepareData(address string, request []byte) {
+	if address == "all" {
+		for _, node := range smudge.AllNodes() {
+			if strconv.Itoa(int(node.Port())) != NODE_ID {
+				if err := sendData(node.Address(), request); err != nil {
+					log.Panic(err)
+				} else {
+					fmt.Println("same port")
+				}
 			}
 		}
-
-		knownNodes = updatedNodes
 		return
 	}
+	if err := sendData(address, request); err != nil {
+		log.Panic(err)
+	}
+}
 
+func sendData(address string, request []byte) error {
+	s := strings.Split(address, ":")
+	to := fmt.Sprintf("%s:1%s", s[0], s[1])
+	conn, err := net.Dial(protocol, to)
+	if err != nil {
+		log.Panic(err)
+	}
 	defer conn.Close()
 
 	_, err = io.Copy(conn, bytes.NewReader(request))
 	if err != nil {
 		log.Panic(err)
 	}
+	return nil
 }
 
 func sendGetBlocks(addr string) {
+	fmt.Println("Send get blocks")
 	encodedGetBlocks := gobEncode(getblocks{nodeAddress, addr})
 	request := append(commandToBytes("getblocks"), encodedGetBlocks...)
-	smudge.BroadcastBytes(request)
-	// sendData(addr, request)
+	prepareData(addr, request)
 }
 
 func sendGetData(addr, kind string, id []byte) {
+	fmt.Println("Send get data")
 	encodedGetData := gobEncode(getdata{nodeAddress, addr, kind, id})
 	request := append(commandToBytes("getdata"), encodedGetData...)
-	smudge.BroadcastBytes(request)
-	// sendData(addr, request)
+	prepareData(addr, request)
 }
 
 func sendTx(addr string, tnx *Transaction) {
+	fmt.Println("Send tx")
 	encodedTx := gobEncode(tx{nodeAddress, addr, SerializeTransaction(*tnx)})
 	request := append(commandToBytes("tx"), encodedTx...)
-	smudge.BroadcastBytes(request)
-	// sendData(addr, request)
+	prepareData(addr, request)
 }
 
 func sendInventory(addr, kind string, blockHashes [][]byte) {
+	fmt.Println("Send inv")
 	encodedInventory := gobEncode(inventory{nodeAddress, addr, kind, blockHashes})
 	request := append(commandToBytes("inv"), encodedInventory...)
-	smudge.BroadcastBytes(request)
-	// sendData(addr, request)
+	prepareData(addr, request)
 }
 
 func sendVersion(addr string, bc *Blockchain) {
@@ -537,8 +573,7 @@ func sendVersion(addr string, bc *Blockchain) {
 	lastHeight := bc.GetLastBlockHeight()
 	encodedLastHeight := gobEncode(version{nodeAddress, addr, nodeVersion, lastHeight})
 	request := append(commandToBytes("version"), encodedLastHeight...)
-	smudge.BroadcastBytes(request)
-	// sendData(addr, request)
+	prepareData(addr, request)
 }
 
 func nodeIsKnown(address string) bool {
