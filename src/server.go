@@ -233,6 +233,7 @@ func handleAddr(request []byte) {
 		buff    bytes.Buffer
 		payload addr
 	)
+	fmt.Println("Handle addr")
 
 	buff.Write(request[commandLength:])
 	dec := gob.NewDecoder(&buff)
@@ -254,6 +255,7 @@ func handleBlock(request []byte, bc *Blockchain) {
 		buff    bytes.Buffer
 		payload block
 	)
+	fmt.Println("Handle Block")
 
 	buff.Write(request[commandLength:])
 	dec := gob.NewDecoder(&buff)
@@ -274,7 +276,7 @@ func handleBlock(request []byte, bc *Blockchain) {
 	bc.AddBlock(block)
 
 	fmt.Printf("Added block %x\n", block.Hash)
-	blockHashes := bc.GetBlockHashes()
+	// blockHashes := bc.GetBlockHashes()
 
 	// // TODO: use broadcasr instead
 	// if nodeAddress == knownNodes[0] {
@@ -284,24 +286,20 @@ func handleBlock(request []byte, bc *Blockchain) {
 	// 		}
 	// 	}
 	// }
-	sendInventory("all", "block", blockHashes)
+	// sendInventory("all", "block", blockHashes)
 
-	blocksInTransit.RLock()
+	blocksInTransit.Lock()
 	transistNum := len(blocksInTransit.a)
-	blocksInTransit.RUnlock()
 	if transistNum > 0 {
 		// TODO: reverse transmit
-		blocksInTransit.RLock()
 		blockHash := blocksInTransit.a[0]
-		blocksInTransit.RUnlock()
 		sendGetData(payload.AddrFrom, "block", blockHash)
-		blocksInTransit.Lock()
 		blocksInTransit.a = blocksInTransit.a[1:]
-		blocksInTransit.Unlock()
 	} else {
 		UTXOSet := UTXOSet{bc}
 		UTXOSet.Reindex()
 	}
+	blocksInTransit.Unlock()
 }
 
 func handleInventory(request []byte, bc *Blockchain) {
@@ -309,6 +307,7 @@ func handleInventory(request []byte, bc *Blockchain) {
 		buff    bytes.Buffer
 		payload inventory
 	)
+	fmt.Println("Handle Inventory")
 
 	buff.Write(request[commandLength:])
 	dec := gob.NewDecoder(&buff)
@@ -363,6 +362,7 @@ func handleGetBlocks(request []byte, bc *Blockchain) {
 		buff    bytes.Buffer
 		payload getblocks
 	)
+	fmt.Println("Handle Get blocks")
 
 	buff.Write(request[commandLength:])
 	dec := gob.NewDecoder(&buff)
@@ -383,6 +383,7 @@ func handleGetData(request []byte, bc *Blockchain) {
 		buff    bytes.Buffer
 		payload getdata
 	)
+	fmt.Println("Handle Getdata")
 
 	buff.Write(request[commandLength:])
 	dec := gob.NewDecoder(&buff)
@@ -422,6 +423,7 @@ func handleTx(request []byte, bc *Blockchain) {
 		buff    bytes.Buffer
 		payload tx
 	)
+	fmt.Println("Handle Tx")
 
 	buff.Write(request[commandLength:])
 	dec := gob.NewDecoder(&buff)
@@ -501,11 +503,15 @@ func handleTx(request []byte, bc *Blockchain) {
 			mempool.Unlock()
 		}
 
-		for _, node := range knownNodes {
-			if node != nodeAddress {
-				sendInventory(node, "block", [][]byte{newBlock.Hash})
+		/*
+			broadcast to all known nodes
+			for _, node := range knownNodes {
+				if node != nodeAddress {
+					sendInventory(node, "block", [][]byte{newBlock.Hash})
+				}
 			}
-		}
+		*/
+		sendInventory("all", "block", [][]byte{newBlock.Hash})
 
 		mempool.RLock()
 		memLen := len(mempool.m)
@@ -522,6 +528,7 @@ func handleVersion(request []byte, bc *Blockchain) {
 		buff    bytes.Buffer
 		payload version
 	)
+	fmt.Println("Handle Version")
 
 	buff.Write(request[commandLength:])
 	decoder := gob.NewDecoder(&buff)
@@ -535,7 +542,6 @@ func handleVersion(request []byte, bc *Blockchain) {
 		return
 	}
 
-	fmt.Println("Hello")
 	myHeight := bc.GetLastBlockHeight()
 	requestHeight := payload.BlockHeight
 
@@ -552,6 +558,7 @@ func handleVersion(request []byte, bc *Blockchain) {
 }
 
 func sendBlock(addr string, b *Block) {
+	fmt.Println("Send block")
 	payload := gobEncode(block{nodeAddress, addr, Serialize(b)})
 	request := append(commandToBytes("block"), payload...)
 	prepareData(addr, request)
@@ -565,7 +572,7 @@ func prepareData(address string, request []byte) {
 				if err := sendData(node.Address(), request); err != nil {
 					if strings.HasSuffix(err.Error(), "connection refused") {
 						smudge.UpdateNodeStatus(node, smudge.StatusDead, nil)
-						return
+						continue
 					}
 					log.Panic(err)
 				}
@@ -576,6 +583,18 @@ func prepareData(address string, request []byte) {
 		return
 	}
 	if err := sendData(address, request); err != nil {
+		if strings.HasSuffix(err.Error(), "connection refused") {
+			node := func() *smudge.Node {
+				for _, node := range smudge.AllNodes() {
+					if node.Address() == address {
+						return node
+					}
+				}
+				return nil
+			}()
+			smudge.UpdateNodeStatus(node, smudge.StatusDead, nil)
+			return
+		}
 		log.Panic(err)
 	}
 }

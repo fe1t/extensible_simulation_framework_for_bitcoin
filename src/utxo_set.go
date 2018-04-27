@@ -14,6 +14,8 @@ type UTXOSet struct {
 }
 
 func (u UTXOSet) FindSpendableOutputs(pubKeyHash []byte, amount int) (int, map[string][]int) {
+	u.bc.RLock()
+	defer u.bc.RUnlock()
 	var unspentUTXO = make(map[string][]int)
 	db := u.bc.db
 	acc := 0
@@ -44,6 +46,9 @@ func (u UTXOSet) FindSpendableOutputs(pubKeyHash []byte, amount int) (int, map[s
 }
 
 func (u UTXOSet) FindUTXO(pubKeyHash []byte) []TXOutput {
+	u.bc.RLock()
+	defer u.bc.RUnlock()
+
 	var utxos []TXOutput
 	db := u.bc.db
 
@@ -71,6 +76,9 @@ func (u UTXOSet) FindUTXO(pubKeyHash []byte) []TXOutput {
 }
 
 func (u UTXOSet) CountTransactions() int {
+	u.bc.RLock()
+	defer u.bc.RUnlock()
+
 	db := u.bc.db
 	counter := 0
 
@@ -92,6 +100,9 @@ func (u UTXOSet) CountTransactions() int {
 }
 
 func (u UTXOSet) Reindex() {
+	u.bc.RLock()
+	defer u.bc.RUnlock()
+
 	db := u.bc.db
 	bucketName := []byte(utxoBucket)
 
@@ -130,6 +141,9 @@ func (u UTXOSet) Reindex() {
 }
 
 func (u UTXOSet) Update(block *Block) {
+	u.bc.RLock()
+	defer u.bc.RUnlock()
+
 	db := u.bc.db
 
 	err := db.Update(func(tx *bolt.Tx) error {

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sync"
 
 	"github.com/boltdb/bolt"
 )
@@ -20,6 +21,7 @@ const (
 
 // Blockchain struct
 type Blockchain struct {
+	sync.RWMutex
 	tip []byte
 	db  *bolt.DB
 }
@@ -30,6 +32,8 @@ type BlockchainIterator struct {
 }
 
 func (bc *Blockchain) Iterator() *BlockchainIterator {
+	bc.RLock()
+	defer bc.RUnlock()
 	bci := &BlockchainIterator{bc.tip, bc.db}
 
 	return bci
@@ -62,6 +66,7 @@ func (bc *Blockchain) MineBlock(transactions []*Transaction) *Block {
 		lastHeight int
 	)
 
+	bc.RLock()
 	for _, tx := range transactions {
 		// TODO: ignore transaction if it's not valid
 		if !bc.VerifyTransaction(tx) {
@@ -77,9 +82,11 @@ func (bc *Blockchain) MineBlock(transactions []*Transaction) *Block {
 		lastHeight = block.Height
 		return nil
 	})
+	bc.RUnlock()
 
 	newBlock := NewBlock(transactions, lastHash, lastHeight+1)
 
+	bc.Lock()
 	err = bc.db.Update(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket([]byte(blockBucket))
 		err = bucket.Put(newBlock.Hash, Serialize(newBlock))
@@ -94,6 +101,7 @@ func (bc *Blockchain) MineBlock(transactions []*Transaction) *Block {
 		bc.tip = newBlock.Hash
 		return nil
 	})
+	bc.Unlock()
 
 	if err != nil {
 		log.Panic(err)
@@ -103,6 +111,9 @@ func (bc *Blockchain) MineBlock(transactions []*Transaction) *Block {
 }
 
 func (bc *Blockchain) FindUTXO() map[string]TXOutputs {
+	bc.RLock()
+	defer bc.RUnlock()
+
 	utxos := make(map[string]TXOutputs)
 	spentUTXOs := make(map[string][]int)
 	bci := bc.Iterator()
@@ -143,6 +154,9 @@ func (bc *Blockchain) FindUTXO() map[string]TXOutputs {
 }
 
 func (bc *Blockchain) FindTransaction(ID []byte) (Transaction, error) {
+	bc.RLock()
+	defer bc.RUnlock()
+
 	bci := bc.Iterator()
 
 	for {
@@ -163,6 +177,9 @@ func (bc *Blockchain) FindTransaction(ID []byte) (Transaction, error) {
 }
 
 func (bc *Blockchain) SignTransaction(tx *Transaction, privKey ecdsa.PrivateKey) {
+	bc.RLock()
+	defer bc.RUnlock()
+
 	prevTXs := make(map[string]Transaction)
 
 	for _, inTx := range tx.Vin {
@@ -177,6 +194,9 @@ func (bc *Blockchain) SignTransaction(tx *Transaction, privKey ecdsa.PrivateKey)
 }
 
 func (bc *Blockchain) VerifyTransaction(tx *Transaction) bool {
+	bc.RLock()
+	defer bc.RUnlock()
+
 	if tx.IsCoinbase() {
 		return true
 	}
@@ -271,6 +291,9 @@ func CreateBlockchain(address, nodeID string) *Blockchain {
 }
 
 func (bc *Blockchain) AddBlock(block *Block) {
+	bc.Lock()
+	defer bc.Unlock()
+
 	err := bc.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blockBucket))
 		oldBlock := b.Get(block.Hash)
@@ -305,6 +328,9 @@ func (bc *Blockchain) AddBlock(block *Block) {
 }
 
 func (bc *Blockchain) GetLastBlockHeight() int {
+	bc.RLock()
+	defer bc.RUnlock()
+
 	var lastBlock Block
 
 	err := bc.db.View(func(tx *bolt.Tx) error {
@@ -323,6 +349,9 @@ func (bc *Blockchain) GetLastBlockHeight() int {
 }
 
 func (bc *Blockchain) GetBlock(blockHash []byte) (Block, error) {
+	bc.RLock()
+	defer bc.RUnlock()
+
 	var block Block
 
 	err := bc.db.View(func(tx *bolt.Tx) error {
@@ -331,7 +360,7 @@ func (bc *Blockchain) GetBlock(blockHash []byte) (Block, error) {
 		blockData := b.Get(blockHash)
 
 		if blockData == nil {
-			return errors.New("Block not found.")
+			return errors.New("Block not found")
 		}
 
 		block = *Deserialize(blockData)
@@ -346,6 +375,9 @@ func (bc *Blockchain) GetBlock(blockHash []byte) (Block, error) {
 }
 
 func (bc *Blockchain) GetBlockHashes() [][]byte {
+	bc.RLock()
+	defer bc.RUnlock()
+
 	var blocks [][]byte
 	bci := bc.Iterator()
 
