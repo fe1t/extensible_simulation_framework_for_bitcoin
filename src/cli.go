@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/clockworksoul/smudge"
 	"github.com/olekukonko/tablewriter"
 	clii "github.com/urfave/cli"
 )
@@ -208,8 +209,14 @@ type commandUsage struct {
 	usage   string
 }
 
+type peerNode struct {
+	address string
+	status  smudge.NodeStatus
+}
+
 type formatter interface {
 	DumpUsage([]commandUsage)
+	DumpPeers([]peerNode)
 }
 
 func (i *impl) readInput() {
@@ -227,6 +234,10 @@ func (i *impl) readInput() {
 			i.listaddressesInput()
 		case "printchain":
 			i.printchainInput()
+		case "printpeer":
+			i.printpeerInput()
+		case "checkupdate":
+			i.checkupdateInput()
 		case "reindexutxo":
 			i.reindexutxoInput()
 		case "send":
@@ -273,6 +284,22 @@ func (i *impl) printchainInput() {
 	defer recoverer()
 	fmt.Println(" > Your blockchain looks like this:")
 	printChain(NODE_ID)
+}
+
+func (i *impl) printpeerInput() {
+	defer recoverer()
+	fmt.Println(" > Print known nodes")
+	pu := []peerNode{}
+	for _, n := range smudge.AllNodes() {
+		pu = append(pu, peerNode{n.Address(), n.Status()})
+	}
+	i.fmt.DumpPeers(pu)
+}
+
+func (i *impl) checkupdateInput() {
+	defer recoverer()
+	fmt.Println(" > Updating version:")
+	sendVersion("all", Bc)
 }
 
 func (i *impl) reindexutxoInput() {
@@ -336,7 +363,9 @@ func (i *impl) printCommandUsage() {
 	cu = append(cu, commandUsage{"getbalance", "Get balance of 'Address'"})
 	cu = append(cu, commandUsage{"listaddresses", "Lists all addresses from the wallet file"})
 	cu = append(cu, commandUsage{"printchain", "Print all the blocks of the blockchain"})
+	cu = append(cu, commandUsage{"printpeer", "Print all peers connected"})
 	cu = append(cu, commandUsage{"reindexutxo", "Rebuild the UTXO set"})
+	cu = append(cu, commandUsage{"checkupdate", "Check for version update"})
 	cu = append(cu, commandUsage{"send", "Send 'Amount' of coins 'From' address to 'To' address"})
 
 	fmt.Fprint(os.Stdout, "\nCommand Usage Layout:\n\n")
@@ -483,6 +512,17 @@ func (tf tableFormatter) DumpUsage(commandUsages []commandUsage) {
 	table.SetHeader([]string{"Command", "Usage"})
 	for _, u := range commandUsages {
 		row := []string{u.command, u.usage}
+		table.Append(row)
+	}
+	table.Render()
+}
+
+func (tf tableFormatter) DumpPeers(peerUsage []peerNode) {
+	table := tablewriter.NewWriter(os.Stdout)
+	table.SetColWidth(100)
+	table.SetHeader([]string{"Address", "Status"})
+	for _, n := range peerUsage {
+		row := []string{n.address, n.status.String()}
 		table.Append(row)
 	}
 	table.Render()
