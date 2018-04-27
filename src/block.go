@@ -63,11 +63,13 @@ func Deserialize(data []byte) *Block {
 	var block Block
 	var buf bytes.Buffer
 
+	// spew.Dump(data)
 	buf.Write(data)
 	gobDecoder := gob.NewDecoder(&buf)
 	err := gobDecoder.Decode(&block)
 	if err != nil {
 		log.Panic(err)
 	}
+
 	return &block
 }

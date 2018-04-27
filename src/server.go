@@ -12,9 +12,9 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/clockworksoul/smudge"
-	"github.com/davecgh/go-spew/spew"
 )
 
 type addr struct {
@@ -74,7 +74,8 @@ const (
 	protocol      = "tcp"
 	nodeVersion   = 1
 	commandLength = 12
-	baseAddress   = "127.0.0.1"
+	baseAddress   = "158.108.226.61"
+	// baseAddress   = "127.0.0.1"
 )
 
 var (
@@ -146,28 +147,28 @@ func ConfigServer() error {
 
 func StartServer(nodeID, minerAddress string) {
 	var err error
-	var wg sync.WaitGroup
+	// var wg sync.WaitGroup
 
 	nodeAddress = fmt.Sprintf("%s:%s", baseAddress, nodeID)
 	rewardToAddress = minerAddress
 
-	wg.Add(1)
-	go func() {
-		err = ConfigServer()
-		wg.Done()
-	}()
-	wg.Wait()
-	if err != nil {
+	// wg.Add(1)
+	// go func() {
+	// 	err = ConfigServer()
+	// 	wg.Done()
+	// }()
+	// wg.Wait()
+	if err = ConfigServer(); err != nil {
 		log.Panic(err)
 	}
 
 	go func() {
-		ln, err2 := net.Listen(protocol, fmt.Sprintf(":1%s", NODE_ID))
-		if err2 != nil {
-			err = err2
-			return
+		ln, err := net.Listen(protocol, fmt.Sprintf(":1%s", NODE_ID))
+		if err != nil {
+			log.Panic(ln)
 		}
 		defer ln.Close()
+
 		for {
 			conn, err2 := ln.Accept()
 			if err2 != nil {
@@ -176,7 +177,6 @@ func StartServer(nodeID, minerAddress string) {
 			}
 			go handleConnection(conn, Bc)
 		}
-		// defer ln.Close()
 	}()
 	if err != nil {
 		log.Panic(err)
@@ -186,6 +186,7 @@ func StartServer(nodeID, minerAddress string) {
 		Bc = NewBlockchain(nodeID)
 	}
 
+	time.Sleep(time.Second * 3)
 	sendVersion("all", Bc)
 
 	// if nodeAddress != knownNodes[0] {
@@ -262,7 +263,7 @@ func handleBlock(request []byte, bc *Blockchain) {
 	blockData := payload.Block
 	block := Deserialize(blockData)
 
-	fmt.Println("Recevied a new block!")
+	fmt.Println("Recevied a new block! from", payload.AddrFrom)
 
 	//TODO: verify block before adding
 	bc.AddBlock(block)
@@ -413,6 +414,8 @@ func handleTx(request []byte, bc *Blockchain) {
 	txData := payload.Transaction
 	tx := DeserializeTransaction(txData)
 
+	// spew.Dump(tx)
+
 	mempool.Lock()
 	mempool.m[hex.EncodeToString(tx.ID)] = tx
 	mempool.Unlock()
@@ -504,7 +507,7 @@ func handleVersion(request []byte, bc *Blockchain) {
 	if err != nil {
 		log.Panic(err)
 	}
-	spew.Dump(payload)
+	// spew.Dump(payload)
 
 	if payload.AddrTo != "all" && payload.AddrTo != nodeAddress {
 		return
@@ -517,6 +520,7 @@ func handleVersion(request []byte, bc *Blockchain) {
 	if myHeight < requestHeight {
 		sendGetBlocks(payload.AddrFrom)
 	} else if myHeight > requestHeight {
+		fmt.Println("Should not get here")
 		sendVersion(payload.AddrFrom, bc)
 	}
 
@@ -534,12 +538,17 @@ func sendBlock(addr string, b *Block) {
 func prepareData(address string, request []byte) {
 	if address == "all" {
 		for _, node := range smudge.AllNodes() {
+			fmt.Println(node.Address())
 			if strconv.Itoa(int(node.Port())) != NODE_ID {
 				if err := sendData(node.Address(), request); err != nil {
+					if strings.HasSuffix(err.Error(), "connection refused") {
+						smudge.UpdateNodeStatus(node, smudge.StatusDead, nil)
+						return
+					}
 					log.Panic(err)
-				} else {
-					fmt.Println("same port")
 				}
+			} else {
+				fmt.Println("same port")
 			}
 		}
 		return
@@ -554,13 +563,13 @@ func sendData(address string, request []byte) error {
 	to := fmt.Sprintf("%s:1%s", s[0], s[1])
 	conn, err := net.Dial(protocol, to)
 	if err != nil {
-		log.Panic(err)
+		return err
 	}
 	defer conn.Close()
 
 	_, err = io.Copy(conn, bytes.NewReader(request))
 	if err != nil {
-		log.Panic(err)
+		return err
 	}
 	return nil
 }

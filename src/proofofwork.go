@@ -21,6 +21,16 @@ type ProofOfWork struct {
 
 // PrepareData to get bytes stream
 func (pow *ProofOfWork) prepareData(nonce int) []byte {
+	// fmt.Println("Prev hash")
+	// spew.Dump(pow.block.PrevHash)
+	// fmt.Println("Hash Txs")
+	// spew.Dump(pow.block.HashTransactions())
+	// fmt.Println("TimeStamp")
+	// spew.Dump(IntToHex(pow.block.Timestamp))
+	// fmt.Println("targetbits")
+	// spew.Dump(IntToHex(int64(targetBits)))
+	// fmt.Println("nonce")
+	// spew.Dump(IntToHex(int64(nonce)))
 	data := bytes.Join(
 		[][]byte{
 			pow.block.PrevHash,
@@ -41,7 +51,7 @@ func (pow *ProofOfWork) Run() (int, []byte) {
 		hash    [32]byte
 	)
 	nonce := 0
-	fmt.Printf("Minging the new block")
+	fmt.Printf("Mining the new block")
 	for nonce < maxNonce {
 		data := pow.prepareData(nonce)
 		hash = sha256.Sum256(data)
