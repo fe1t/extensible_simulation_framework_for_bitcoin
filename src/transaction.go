@@ -270,8 +270,10 @@ func SerializeTransaction(tx Transaction) []byte {
 
 func DeserializeTransaction(data []byte) Transaction {
 	var tx Transaction
+	var buf bytes.Buffer
 
-	gobDecoder := gob.NewDecoder(bytes.NewReader(data))
+	buf.Write(data)
+	gobDecoder := gob.NewDecoder(&buf)
 	err := gobDecoder.Decode(&tx)
 	if err != nil {
 		log.Panic(err)
@@ -314,8 +316,10 @@ func SerializeOutputs(data TXOutputs) []byte {
 
 func DeserializeOutputs(data []byte) TXOutputs {
 	var outputs TXOutputs
+	var buf bytes.Buffer
 
-	gobDecoder := gob.NewDecoder(bytes.NewReader(data))
+	buf.Write(data)
+	gobDecoder := gob.NewDecoder(&buf)
 	err := gobDecoder.Decode(&outputs)
 	if err != nil {
 		log.Panic(err)

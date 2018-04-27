@@ -46,6 +46,8 @@ func (ws *Wallets) GetAddresses() []string {
 }
 
 func (ws *Wallets) LoadFromFile(nodeID string) error {
+	var buf bytes.Buffer
+
 	walletFile := fmt.Sprintf(walletFile, nodeID)
 	if _, err := os.Stat(walletFile); os.IsNotExist(err) {
 		return err
@@ -58,7 +60,9 @@ func (ws *Wallets) LoadFromFile(nodeID string) error {
 
 	var wallets Wallets
 	gob.Register(elliptic.P256())
-	decoder := gob.NewDecoder(bytes.NewReader(fileContent))
+
+	buf.Write(fileContent)
+	decoder := gob.NewDecoder(&buf)
 	err = decoder.Decode(&wallets)
 	if err != nil {
 		log.Panic(err)

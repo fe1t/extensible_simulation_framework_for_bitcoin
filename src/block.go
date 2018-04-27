@@ -49,6 +49,7 @@ func NewGenesisBlock(coinbase *Transaction) *Block {
 // Serialize block header to byte array
 func Serialize(block *Block) []byte {
 	var result bytes.Buffer
+
 	gobEncoder := gob.NewEncoder(&result)
 	err := gobEncoder.Encode(block)
 	if err != nil {
@@ -60,7 +61,10 @@ func Serialize(block *Block) []byte {
 // Deserialize byte array to block header
 func Deserialize(data []byte) *Block {
 	var block Block
-	gobDecoder := gob.NewDecoder(bytes.NewReader(data))
+	var buf bytes.Buffer
+
+	buf.Write(data)
+	gobDecoder := gob.NewDecoder(&buf)
 	err := gobDecoder.Decode(&block)
 	if err != nil {
 		log.Panic(err)

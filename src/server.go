@@ -82,8 +82,13 @@ var (
 	rewardToAddress string
 	knownNodes      = []string{fmt.Sprintf("%s:3000", baseAddress)}
 	blocksInTransit = [][]byte{}
-	mempool         = make(map[string]Transaction)
+	// mempool         = make(map[string]Transaction)
 )
+
+var mempool = struct {
+	sync.RWMutex
+	m map[string]Transaction
+}{m: make(map[string]Transaction)}
 
 func (m MyStatusListener) OnChange(node *smudge.Node, status smudge.NodeStatus) {
 	fmt.Printf("Node %s is now status %s\n", node.Address(), status)
@@ -321,7 +326,10 @@ func handleInventory(request []byte, bc *Blockchain) {
 	if payload.Type == "tx" {
 		txID := payload.Items[0]
 
-		if mempool[hex.EncodeToString(txID)].ID == nil {
+		mempool.RLock()
+		memTx := mempool.m[hex.EncodeToString(txID)]
+		mempool.RUnlock()
+		if memTx.ID == nil {
 			sendGetData(payload.AddrFrom, "tx", txID)
 		}
 	}
@@ -374,7 +382,11 @@ func handleGetData(request []byte, bc *Blockchain) {
 
 	if payload.Type == "tx" {
 		txID := hex.EncodeToString(payload.ID)
-		tx := mempool[txID]
+
+		mempool.RLock()
+		memTx := mempool.m[txID]
+		mempool.RUnlock()
+		tx := memTx
 
 		sendTx(payload.AddrFrom, &tx)
 		// delete(mempool, txID)
@@ -400,7 +412,10 @@ func handleTx(request []byte, bc *Blockchain) {
 
 	txData := payload.Transaction
 	tx := DeserializeTransaction(txData)
-	mempool[hex.EncodeToString(tx.ID)] = tx
+
+	mempool.Lock()
+	mempool.m[hex.EncodeToString(tx.ID)] = tx
+	mempool.Unlock()
 
 	/*
 		check if guaranteed broadcastTx to every node in single machine
@@ -415,15 +430,19 @@ func handleTx(request []byte, bc *Blockchain) {
 		}
 	*/
 
-	if len(mempool) >= 2 && len(rewardToAddress) > 0 {
+	mempool.RLock()
+	memLen := len(mempool.m)
+	mempool.RUnlock()
+	if memLen >= 2 && len(rewardToAddress) > 0 {
 	MineTransactions:
 		var txs []*Transaction
 		var usedTXInput [][]byte
 
-		for id := range mempool {
-			tx := mempool[id]
+		mempool.Lock()
+		for id := range mempool.m {
+			tx := mempool.m[id]
 			if hasSameTXInput(usedTXInput, tx.Vin) {
-				delete(mempool, id)
+				delete(mempool.m, id)
 			} else {
 				verified := bc.VerifyTransaction(&tx)
 				if verified {
@@ -434,6 +453,7 @@ func handleTx(request []byte, bc *Blockchain) {
 				}
 			}
 		}
+		mempool.Unlock()
 
 		if len(txs) == 0 {
 			fmt.Println("All transactions are invalid! Waiting for new ones...")
@@ -451,7 +471,9 @@ func handleTx(request []byte, bc *Blockchain) {
 
 		for _, tx := range txs {
 			txID := hex.EncodeToString(tx.ID)
-			delete(mempool, txID)
+			mempool.Lock()
+			delete(mempool.m, txID)
+			mempool.Unlock()
 		}
 
 		for _, node := range knownNodes {
@@ -460,7 +482,10 @@ func handleTx(request []byte, bc *Blockchain) {
 			}
 		}
 
-		if len(mempool) > 0 {
+		mempool.RLock()
+		memLen := len(mempool.m)
+		mempool.RUnlock()
+		if memLen > 0 {
 			goto MineTransactions
 		}
 	}
