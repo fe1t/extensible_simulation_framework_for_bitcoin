@@ -82,7 +82,7 @@ var (
 	nodeAddress     string
 	rewardToAddress string
 	knownNodes      = []string{fmt.Sprintf("%s:3000", baseAddress)}
-	blocksInTransit = [][]byte{}
+	// blocksInTransit = [][]byte{}
 	// mempool         = make(map[string]Transaction)
 )
 
@@ -90,6 +90,11 @@ var mempool = struct {
 	sync.RWMutex
 	m map[string]Transaction
 }{m: make(map[string]Transaction)}
+
+var blocksInTransit = struct {
+	sync.RWMutex
+	a [][]byte
+}{a: [][]byte{}}
 
 func (m MyStatusListener) OnChange(node *smudge.Node, status smudge.NodeStatus) {
 	fmt.Printf("Node %s is now status %s\n", node.Address(), status)
@@ -271,19 +276,28 @@ func handleBlock(request []byte, bc *Blockchain) {
 	fmt.Printf("Added block %x\n", block.Hash)
 	blockHashes := bc.GetBlockHashes()
 
-	// TODO: use broadcasr instead
-	if nodeAddress == knownNodes[0] {
-		for _, node := range knownNodes {
-			if node != nodeAddress {
-				sendInventory(node, "block", blockHashes)
-			}
-		}
-	}
+	// // TODO: use broadcasr instead
+	// if nodeAddress == knownNodes[0] {
+	// 	for _, node := range knownNodes {
+	// 		if node != nodeAddress {
+	// 			sendInventory(node, "block", blockHashes)
+	// 		}
+	// 	}
+	// }
+	sendInventory("all", "block", blockHashes)
 
-	if len(blocksInTransit) > 0 {
-		blockHash := blocksInTransit[0]
+	blocksInTransit.RLock()
+	transistNum := len(blocksInTransit.a)
+	blocksInTransit.RUnlock()
+	if transistNum > 0 {
+		// TODO: reverse transmit
+		blocksInTransit.RLock()
+		blockHash := blocksInTransit.a[0]
+		blocksInTransit.RUnlock()
 		sendGetData(payload.AddrFrom, "block", blockHash)
-		blocksInTransit = blocksInTransit[1:]
+		blocksInTransit.Lock()
+		blocksInTransit.a = blocksInTransit.a[1:]
+		blocksInTransit.Unlock()
 	} else {
 		UTXOSet := UTXOSet{bc}
 		UTXOSet.Reindex()
@@ -310,18 +324,26 @@ func handleInventory(request []byte, bc *Blockchain) {
 	fmt.Printf("Recevied inventory with %d %s\n", len(payload.Items), payload.Type)
 
 	if payload.Type == "block" {
-		blocksInTransit = payload.Items
+		// TODO: reverse transmit
+		blocksInTransit.Lock()
+		blocksInTransit.a = payload.Items
+		blocksInTransit.Unlock()
 
 		blockHash := payload.Items[0]
 		sendGetData(payload.AddrFrom, "block", blockHash)
 
 		newInTransit := [][]byte{}
-		for _, b := range blocksInTransit {
+		blocksInTransit.RLock()
+		for _, b := range blocksInTransit.a {
 			if bytes.Compare(b, blockHash) != 0 {
 				newInTransit = append(newInTransit, b)
 			}
 		}
-		blocksInTransit = newInTransit
+		blocksInTransit.RUnlock()
+
+		blocksInTransit.Lock()
+		blocksInTransit.a = newInTransit
+		blocksInTransit.Unlock()
 	}
 
 	if payload.Type == "tx" {
@@ -561,7 +583,7 @@ func prepareData(address string, request []byte) {
 func sendData(address string, request []byte) error {
 	s := strings.Split(address, ":")
 	to := fmt.Sprintf("%s:1%s", s[0], s[1])
-	conn, err := net.Dial(protocol, to)
+	conn, err := net.DialTimeout(protocol, to, time.Second*10)
 	if err != nil {
 		return err
 	}

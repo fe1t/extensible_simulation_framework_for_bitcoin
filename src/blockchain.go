@@ -221,7 +221,7 @@ func NewBlockchain(nodeID string) *Blockchain {
 		return nil
 	})
 
-	return &Blockchain{tip, db}
+	return &Blockchain{tip: tip, db: db}
 }
 
 // CreateBlockchain creates a new blockchain DB
@@ -265,7 +265,7 @@ func CreateBlockchain(address, nodeID string) *Blockchain {
 		log.Panic(err)
 	}
 
-	bc := Blockchain{tip, db}
+	bc := Blockchain{tip: tip, db: db}
 
 	return &bc
 }
