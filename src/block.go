@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"encoding/gob"
+	"encoding/hex"
+	"encoding/json"
 	"log"
 	"time"
 )
@@ -15,6 +17,43 @@ type Block struct {
 	Hash         []byte
 	Nonce        int
 	Height       int
+}
+
+func (b *Block) MarshalJSON() ([]byte, error) {
+	type Alias Block
+	return json.Marshal(&struct {
+		Hash     string
+		PrevHash string
+		*Alias
+	}{
+		Hash:     hex.EncodeToString(b.Hash),
+		PrevHash: hex.EncodeToString(b.PrevHash),
+		Alias:    (*Alias)(b),
+	})
+}
+
+func (b *Block) UnmarshalJSON(data []byte) error {
+	var err error
+	type Alias Block
+	aux := &struct {
+		Hash     string
+		PrevHash string
+		*Alias
+	}{
+		Alias: (*Alias)(b),
+	}
+	if err = json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	b.PrevHash, err = hex.DecodeString(aux.PrevHash)
+	if err != nil {
+		return err
+	}
+	b.Hash, err = hex.DecodeString(aux.Hash)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // HashTransactions returns a hash of the transactions in the block
