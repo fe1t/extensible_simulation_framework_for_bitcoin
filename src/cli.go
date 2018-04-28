@@ -215,9 +215,15 @@ type peerNode struct {
 	status  smudge.NodeStatus
 }
 
+type wallet struct {
+	address string
+	balance int
+}
+
 type formatter interface {
 	DumpUsage([]commandUsage)
 	DumpPeers([]peerNode)
+	DumpWallet([]wallet)
 }
 
 func (i *impl) readInput() {
@@ -233,6 +239,8 @@ func (i *impl) readInput() {
 			i.getbalanceInput()
 		case "listaddresses":
 			i.listaddressesInput()
+		case "showwallets":
+			i.showwalletsInput()
 		case "printchain":
 			i.printchainInput()
 		case "printpeer":
@@ -279,6 +287,13 @@ func (i *impl) listaddressesInput() {
 	defer recoverer()
 	fmt.Println(" > Here are your available addresses:")
 	listAddresses(NODE_ID)
+}
+
+func (i *impl) showwalletsInput() {
+	defer recoverer()
+	fmt.Println(" > Here are all you wallets")
+	m := getAllBalances(NODE_ID)
+	i.fmt.DumpWallet(m)
 }
 
 func (i *impl) printchainInput() {
@@ -361,8 +376,9 @@ func (i *impl) sendInput() {
 func (i *impl) printCommandUsage() {
 	cu := []commandUsage{}
 	cu = append(cu, commandUsage{"createwallet", "Generates a new key-pair and saves it into the wallet file"})
-	cu = append(cu, commandUsage{"getbalance", "Get balance of 'Address'"})
-	cu = append(cu, commandUsage{"listaddresses", "Lists all addresses from the wallet file"})
+	// cu = append(cu, commandUsage{"getbalance", "Get balance of 'Address'"})
+	// cu = append(cu, commandUsage{"listaddresses", "Lists all addresses from the wallet file"})
+	cu = append(cu, commandUsage{"showwallets", "Lists all wallets and balances"})
 	cu = append(cu, commandUsage{"printchain", "Print all the blocks of the blockchain"})
 	cu = append(cu, commandUsage{"printpeer", "Print all peers connected"})
 	cu = append(cu, commandUsage{"reindexutxo", "Rebuild the UTXO set"})
@@ -419,6 +435,35 @@ func getBalance(address, nodeID string) {
 	fmt.Printf("Balance of '%s': %d\n", address, balance)
 }
 
+func getAllBalances(nodeID string) []wallet {
+	var ret []wallet
+	wallets, err := NewWallets(nodeID)
+	if err != nil {
+		log.Panic(err)
+	}
+	addresses := wallets.GetAddresses()
+	for _, address := range addresses {
+		if !ValidateAddress(address) {
+			continue
+		}
+		if Bc == nil {
+			Bc = NewBlockchain(nodeID)
+		}
+		utxoSet := UTXOSet{Bc}
+
+		balance := 0
+		pubKeyHash := Base58Decode([]byte(address))
+		pubKeyHash = pubKeyHash[1 : len(pubKeyHash)-4]
+		utxos := utxoSet.FindUTXO(pubKeyHash)
+
+		for _, out := range utxos {
+			balance += out.Value
+		}
+		ret = append(ret, wallet{address, balance})
+	}
+	return ret
+}
+
 func listAddresses(nodeID string) {
 	wallets, err := NewWallets(nodeID)
 	if err != nil {
@@ -427,7 +472,9 @@ func listAddresses(nodeID string) {
 	addresses := wallets.GetAddresses()
 
 	for _, address := range addresses {
-		fmt.Println(address)
+		if ValidateAddress(address) {
+			fmt.Println(address)
+		}
 	}
 }
 
@@ -518,12 +565,23 @@ func (tf tableFormatter) DumpUsage(commandUsages []commandUsage) {
 	table.Render()
 }
 
-func (tf tableFormatter) DumpPeers(peerUsage []peerNode) {
+func (tf tableFormatter) DumpPeers(peers []peerNode) {
 	table := tablewriter.NewWriter(os.Stdout)
 	table.SetColWidth(100)
 	table.SetHeader([]string{"Address", "Status"})
-	for _, n := range peerUsage {
+	for _, n := range peers {
 		row := []string{n.address, n.status.String()}
+		table.Append(row)
+	}
+	table.Render()
+}
+
+func (tf tableFormatter) DumpWallet(wallets []wallet) {
+	table := tablewriter.NewWriter(os.Stdout)
+	table.SetColWidth(100)
+	table.SetHeader([]string{"Wallet Address", "Balance"})
+	for _, w := range wallets {
+		row := []string{w.address, strconv.Itoa(w.balance)}
 		table.Append(row)
 	}
 	table.Render()
