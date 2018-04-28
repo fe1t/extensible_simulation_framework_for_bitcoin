@@ -13,6 +13,40 @@ import (
 
 const blocksBucket = "blocks"
 
+var blocks = make(map[string][]string)
+
+type TreeHierarchy struct {
+	Name     string           `json:"name"`
+	Children []*TreeHierarchy `json:"children"`
+}
+
+func (parent *TreeHierarchy) addChild(Name string) *TreeHierarchy {
+	child := &TreeHierarchy{Name: Name}
+	parent.Children = append(parent.Children, child)
+	return child
+}
+
+func createTreeHierarchy(parentBlock *TreeHierarchy) *TreeHierarchy {
+	if _, ok := blocks[parentBlock.Name]; !ok {
+		return &TreeHierarchy{}
+	}
+	for _, c := range blocks[parentBlock.Name] {
+		child := parentBlock.addChild(c)
+		child = createTreeHierarchy(child)
+	}
+	return parentBlock
+}
+
+func appendIfMissing(slice []string, s string) []string {
+	for _, el := range slice {
+		if el == s {
+			return slice
+		}
+	}
+	slice = append(slice, s)
+	return slice
+}
+
 func blocksHanlder(w http.ResponseWriter, r *http.Request) {
 	var blocks []*Block
 
@@ -40,7 +74,7 @@ func blocksHanlder(w http.ResponseWriter, r *http.Request) {
 }
 
 func dbHandler(w http.ResponseWriter, r *http.Request) {
-	blocks := make(map[string]*Block)
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 
 	if Bc == nil {
 		Bc = NewBlockchain(NODE_ID)
@@ -49,17 +83,32 @@ func dbHandler(w http.ResponseWriter, r *http.Request) {
 		b := tx.Bucket([]byte(blocksBucket))
 		c := b.Cursor()
 
+		// start := b.Get([]byte("l"))
+		// blocks["l"] = append(blocks["l"], hex.EncodeToString(start))
+
 		for k, v := c.First(); k != nil; k, v = c.Next() {
 			if bytes.Compare(k, []byte("l")) == 0 {
+				// 	blocks["l"] = &Block{Hash: v}
 				continue
 			}
 			block := Deserialize(v)
-			blocks[hex.EncodeToString(k)] = block
+			// blocks[hex.EncodeToString(k)] = block
+			pointTo := hex.EncodeToString(k)
+			if block.PrevHash == nil {
+				// blocks["first"] = append(blocks["first"], pointTo)
+				blocks["first"] = appendIfMissing(blocks["first"], pointTo)
+				continue
+			}
+			// blocks[hex.EncodeToString(block.PrevHash)] = append(blocks[hex.EncodeToString(block.PrevHash)], pointTo)
+			blocks[hex.EncodeToString(block.PrevHash)] = appendIfMissing(blocks[hex.EncodeToString(block.PrevHash)], pointTo)
 		}
 		return nil
 	})
 
-	res, err := json.MarshalIndent(blocks, "", "  ")
+	parentBlock := &TreeHierarchy{Name: blocks["first"][0]}
+	ret := createTreeHierarchy(parentBlock)
+
+	res, err := json.MarshalIndent(ret, "", "  ")
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("HTTP 500: Internal Server Error"))
