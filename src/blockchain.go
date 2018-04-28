@@ -290,41 +290,51 @@ func CreateBlockchain(address, nodeID string) *Blockchain {
 	return &bc
 }
 
-func (bc *Blockchain) AddBlock(block *Block) {
+func (bc *Blockchain) AddBlock(block *Block) error {
 	bc.Lock()
 	defer bc.Unlock()
+
+	pow := NewProofOfWork(block)
+	if !pow.Validate() {
+		errMsg := fmt.Sprintf("Proof of Work false with nounce: %d\n", pow.block.Nonce)
+		return errors.New(errMsg)
+	}
 
 	err := bc.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blockBucket))
 		oldBlock := b.Get(block.Hash)
 
 		if oldBlock != nil {
-			return nil
+			return errors.New("Already have block: %s\n%x\n")
 		}
 
 		blockData := Serialize(block)
 		err := b.Put(block.Hash, blockData)
 		if err != nil {
-			log.Panic(err)
+			return err
 		}
 
 		lastHash := b.Get([]byte("l"))
 		lastBlockData := b.Get(lastHash)
 		lastBlock := Deserialize(lastBlockData)
 
-		if block.Height > lastBlock.Height {
-			err = b.Put([]byte("l"), block.Hash)
-			if err != nil {
-				log.Panic(err)
-			}
-			bc.tip = block.Hash
+		// TODO: should return err ?
+		if lastBlock.Height >= block.Height {
+			return nil
 		}
+
+		err = b.Put([]byte("l"), block.Hash)
+		if err != nil {
+			return err
+		}
+		bc.tip = block.Hash
 
 		return nil
 	})
 	if err != nil {
-		log.Panic(err)
+		return err
 	}
+	return nil
 }
 
 func (bc *Blockchain) GetLastBlockHeight() int {
