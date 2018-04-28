@@ -193,6 +193,7 @@ func (cli *CLI) startNode(nodeID, minerAddress string, interactive bool) {
 			log.Panic("Wrong miner address!")
 		}
 	}
+	go RunHTTP()
 	if interactive {
 		go StartServer(nodeID, minerAddress)
 	} else {
