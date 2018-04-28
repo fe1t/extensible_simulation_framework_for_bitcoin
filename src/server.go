@@ -74,7 +74,7 @@ const (
 	protocol      = "tcp"
 	nodeVersion   = 1
 	commandLength = 12
-	baseAddress   = "158.108.226.61"
+	baseAddress   = "192.168.100.102"
 	// baseAddress   = "127.0.0.1"
 )
 
@@ -170,7 +170,7 @@ func StartServer(nodeID, minerAddress string) {
 	go func() {
 		ln, err := net.Listen(protocol, fmt.Sprintf(":1%s", NODE_ID))
 		if err != nil {
-			log.Panic(ln)
+			log.Panic(err)
 		}
 		defer ln.Close()
 
@@ -273,9 +273,13 @@ func handleBlock(request []byte, bc *Blockchain) {
 	fmt.Println("Recevied a new block! from", payload.AddrFrom)
 
 	//TODO: verify block before adding
-	bc.AddBlock(block)
+	err = bc.AddBlock(block)
 
-	fmt.Printf("Added block %x\n", block.Hash)
+	if err != nil {
+		fmt.Printf(err.Error(), hex.EncodeToString(block.Hash), block.Hash)
+	} else {
+		fmt.Printf("Added block %x\n", block.Hash)
+	}
 	// blockHashes := bc.GetBlockHashes()
 
 	// // TODO: use broadcasr instead

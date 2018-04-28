@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/hex"
+	"fmt"
 	"log"
 
 	"github.com/boltdb/bolt"
@@ -16,6 +17,7 @@ type UTXOSet struct {
 func (u UTXOSet) FindSpendableOutputs(pubKeyHash []byte, amount int) (int, map[string][]int) {
 	u.bc.RLock()
 	defer u.bc.RUnlock()
+
 	var unspentUTXO = make(map[string][]int)
 	db := u.bc.db
 	acc := 0
@@ -46,12 +48,15 @@ func (u UTXOSet) FindSpendableOutputs(pubKeyHash []byte, amount int) (int, map[s
 }
 
 func (u UTXOSet) FindUTXO(pubKeyHash []byte) []TXOutput {
+	fmt.Println("finding utxo")
 	u.bc.RLock()
 	defer u.bc.RUnlock()
 
 	var utxos []TXOutput
+	fmt.Println("before get db connection")
 	db := u.bc.db
 
+	fmt.Println("after get db connection")
 	err := db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(utxoBucket))
 		c := b.Cursor()
