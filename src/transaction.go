@@ -155,6 +155,7 @@ func (tx *Transaction) Sign(privKey ecdsa.PrivateKey, prevTxs map[string]Transac
 	}
 }
 
+// TODO: recheck verify method with the original
 func (tx *Transaction) Verify(prevTxs map[string]Transaction) bool {
 	if tx.IsCoinbase() {
 		return true
