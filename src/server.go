@@ -74,7 +74,7 @@ const (
 	protocol      = "tcp"
 	nodeVersion   = 1
 	commandLength = 12
-	baseAddress   = "192.168.100.102"
+	baseAddress   = "192.168.0.179"
 	// baseAddress   = "127.0.0.1"
 )
 
@@ -301,6 +301,8 @@ func handleBlock(request []byte, bc *Blockchain) {
 		blocksInTransit.a = blocksInTransit.a[1:]
 	} else {
 		UTXOSet := UTXOSet{bc}
+
+		// TODO: mostly cause problem
 		UTXOSet.Reindex()
 	}
 	blocksInTransit.Unlock()
