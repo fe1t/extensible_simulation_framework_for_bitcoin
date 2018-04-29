@@ -20,7 +20,36 @@ const (
 	goingBack       = "> Going back..."
 )
 
-var NODE_ID = os.Getenv("NODE_ID")
+var (
+	NODE_ID = os.Getenv("NODE_ID")
+	logger  smudge.DefaultLogger
+)
+
+const (
+	// LogAll allows all log output of all levels to be emitted.
+	LogAll smudge.LogLevel = iota
+
+	// LogTrace restricts log output to trace level and above.
+	LogTrace
+
+	// LogDebug restricts log output to debug level and above.
+	LogDebug
+
+	// LogInfo restricts log output to info level and above.
+	LogInfo
+
+	// LogWarn restricts log output to warn level and above.
+	LogWarn
+
+	// LogError restricts log output to error level and above.
+	LogError
+
+	// LogFatal restricts log output to fatal level.
+	LogFatal
+
+	// LogOff prevents all log output entirely.
+	LogOff
+)
 
 type CLI struct{}
 
@@ -260,7 +289,6 @@ func (i *impl) readInput() {
 		default:
 			fmt.Println("Unknown command")
 		}
-		time.Sleep(time.Second * 1)
 		i.printCommandUsage()
 		fmt.Print("Command: ")
 	}
@@ -314,14 +342,18 @@ func (i *impl) printpeerInput() {
 
 func (i *impl) checkupdateInput() {
 	defer recoverer()
-	fmt.Println(" > Updating version:")
+	fmt.Printf(" > Updating version:")
 	sendVersion("all", Bc)
+	time.Sleep(time.Millisecond * 500)
+	fmt.Printf(" ...DONE!\n")
 }
 
 func (i *impl) reindexutxoInput() {
 	defer recoverer()
-	fmt.Println(" > Reindexing the UTXO set")
+	fmt.Println(" > Reindexing the UTXO set:")
 	reindexUTXO(NODE_ID)
+	time.Sleep(time.Millisecond * 500)
+	fmt.Printf(" ...DONE!\n")
 }
 
 func (i *impl) sendInput() {
@@ -374,6 +406,7 @@ func (i *impl) sendInput() {
 }
 
 func (i *impl) printCommandUsage() {
+	time.Sleep(time.Second * 1)
 	cu := []commandUsage{}
 	cu = append(cu, commandUsage{"createwallet", "Generates a new key-pair and saves it into the wallet file"})
 	// cu = append(cu, commandUsage{"getbalance", "Get balance of 'Address'"})
@@ -382,8 +415,8 @@ func (i *impl) printCommandUsage() {
 	cu = append(cu, commandUsage{"printchain", "Print all the blocks of the blockchain"})
 	cu = append(cu, commandUsage{"printpeer", "Print all peers connected"})
 	cu = append(cu, commandUsage{"reindexutxo", "Rebuild the UTXO set"})
-	cu = append(cu, commandUsage{"checkupdate", "Check for version update"})
 	cu = append(cu, commandUsage{"send", "Send 'Amount' of coins 'From' address to 'To' address"})
+	cu = append(cu, commandUsage{"checkupdate", "Check for version update"})
 
 	fmt.Fprint(os.Stdout, "\nCommand Usage Layout:\n\n")
 	i.fmt.DumpUsage(cu)
@@ -490,10 +523,10 @@ func printChain(nodeID string) {
 		block := bci.Next()
 
 		fmt.Printf("============ Block %x ============\n", block.Hash)
-		fmt.Printf("Height: %d\n", block.Height)
-		fmt.Printf("Prev. block: %x\n", block.PrevHash)
-		pow := NewProofOfWork(block)
-		fmt.Printf("PoW: %s\n\n", strconv.FormatBool(pow.Validate()))
+		headersFormat := blockHeader(block)
+		for _, header := range headersFormat {
+			fmt.Println(header)
+		}
 		for _, tx := range block.Transactions {
 			fmt.Println(tx)
 		}
@@ -503,6 +536,25 @@ func printChain(nodeID string) {
 			break
 		}
 	}
+}
+
+func blockHeader(block *Block) []string {
+	var formatHeader []string
+	headers := []string{"Timestamp", "Height", "Prev block", "Merkle root", "Nonce", "PoW"}
+	max := 0
+	for _, header := range headers {
+		if len(header) > max {
+			max = len(header)
+		}
+	}
+	pow := NewProofOfWork(block)
+	formatHeader = append(formatHeader, fmt.Sprintf("%*s : %d", -max, headers[0], block.Timestamp))
+	formatHeader = append(formatHeader, fmt.Sprintf("%*s : %d", -max, headers[1], block.Height))
+	formatHeader = append(formatHeader, fmt.Sprintf("%*s : %x", -max, headers[2], block.PrevHash))
+	formatHeader = append(formatHeader, fmt.Sprintf("%*s : %x", -max, headers[3], block.HashTransactions()))
+	formatHeader = append(formatHeader, fmt.Sprintf("%*s : %d", -max, headers[4], block.Nonce))
+	formatHeader = append(formatHeader, fmt.Sprintf("%*s : %s", -max, headers[5], strconv.FormatBool(pow.Validate())))
+	return formatHeader
 }
 
 func reindexUTXO(nodeID string) {
@@ -593,6 +645,6 @@ func outputInstructionline() {
 
 func recoverer() {
 	if r := recover(); r != nil {
-		fmt.Println("Recover from:", r)
+		logger.Logf(LogFatal, "Recovered from: %s", r)
 	}
 }

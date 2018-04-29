@@ -148,7 +148,7 @@ func ConfigServer(nodeID, minerAddress string) error {
 	smudge.SetListenPort(port)
 	smudge.SetHeartbeatMillis(500)
 	smudge.SetMaxBroadcastBytes(2000)
-	smudge.SetLogThreshold(smudge.LogFatal)
+	smudge.SetLogThreshold(LogFatal)
 	// smudge.SetMulticastEnabled(false)
 	smudge.SetClusterName("KU")
 
@@ -225,7 +225,7 @@ func handleConnection(conn net.Conn, bc *Blockchain) {
 	}
 	command := bytesToCommand(request[:commandLength])
 
-	fmt.Printf("Received %s command\n", command)
+	logger.Logf(LogInfo, "Received %s command\n", command)
 
 	switch command {
 	// case "addr":
@@ -243,7 +243,7 @@ func handleConnection(conn net.Conn, bc *Blockchain) {
 	case "version":
 		handleVersion(request, bc)
 	default:
-		fmt.Println("Unknown command!")
+		logger.Logf(LogInfo, "Unknown command!")
 	}
 }
 
@@ -252,7 +252,7 @@ func handleAddr(request []byte) {
 		buff    bytes.Buffer
 		payload addr
 	)
-	fmt.Println("Handle addr")
+	logger.Logf(LogDebug, "Handle addr")
 
 	buff.Write(request[commandLength:])
 	dec := gob.NewDecoder(&buff)
@@ -265,7 +265,7 @@ func handleAddr(request []byte) {
 	}
 
 	knownNodes = append(knownNodes, payload.AddrList...)
-	fmt.Printf("There are %d known nodes now!\n", len(knownNodes))
+	logger.Logf(LogInfo, "There are %d known nodes now!\n", len(knownNodes))
 	requestBlocks()
 }
 
@@ -274,7 +274,7 @@ func handleBlock(request []byte, bc *Blockchain) {
 		buff    bytes.Buffer
 		payload block
 	)
-	fmt.Println("Handle Block")
+	logger.Logf(LogDebug, "Handle Block")
 
 	buff.Write(request[commandLength:])
 	dec := gob.NewDecoder(&buff)
@@ -289,15 +289,15 @@ func handleBlock(request []byte, bc *Blockchain) {
 	blockData := payload.Block
 	block := Deserialize(blockData)
 
-	fmt.Println("Recevied a new block! from", payload.AddrFrom)
+	logger.Logf(LogInfo, "Recevied a new block! from", payload.AddrFrom)
 
 	//TODO: verify block before adding
 	err = bc.AddBlock(block)
 
 	if err != nil {
-		fmt.Printf(err.Error(), hex.EncodeToString(block.Hash), block.Hash)
+		logger.Logf(LogError, err.Error())
 	} else {
-		fmt.Printf("Added block %x\n", block.Hash)
+		logger.Logf(LogInfo, "Added block %x\n", block.Hash)
 	}
 	// blockHashes := bc.GetBlockHashes()
 
@@ -332,7 +332,7 @@ func handleInventory(request []byte, bc *Blockchain) {
 		buff    bytes.Buffer
 		payload inventory
 	)
-	fmt.Println("Handle Inventory")
+	logger.Logf(LogDebug, "Handle Inventory")
 
 	buff.Write(request[commandLength:])
 	dec := gob.NewDecoder(&buff)
@@ -345,7 +345,7 @@ func handleInventory(request []byte, bc *Blockchain) {
 		return
 	}
 
-	fmt.Printf("Recevied inventory with %d %s\n", len(payload.Items), payload.Type)
+	logger.Logf(LogInfo, "Recevied inventory with %d %s\n", len(payload.Items), payload.Type)
 
 	if payload.Type == "block" {
 		// TODO: reverse transmit
@@ -387,7 +387,7 @@ func handleGetBlocks(request []byte, bc *Blockchain) {
 		buff    bytes.Buffer
 		payload getblocks
 	)
-	fmt.Println("Handle Get blocks")
+	logger.Logf(LogDebug, "Handle Get blocks")
 
 	buff.Write(request[commandLength:])
 	dec := gob.NewDecoder(&buff)
@@ -408,7 +408,7 @@ func handleGetData(request []byte, bc *Blockchain) {
 		buff    bytes.Buffer
 		payload getdata
 	)
-	fmt.Println("Handle Getdata")
+	logger.Logf(LogDebug, "Handle Getdata")
 
 	buff.Write(request[commandLength:])
 	dec := gob.NewDecoder(&buff)
@@ -448,7 +448,7 @@ func handleTx(request []byte, bc *Blockchain) {
 		buff    bytes.Buffer
 		payload tx
 	)
-	fmt.Println("Handle Tx")
+	logger.Logf(LogDebug, "Handle Tx")
 
 	buff.Write(request[commandLength:])
 	dec := gob.NewDecoder(&buff)
@@ -508,7 +508,7 @@ func handleTx(request []byte, bc *Blockchain) {
 		mempool.Unlock()
 
 		if len(txs) == 0 {
-			fmt.Println("All transactions are invalid! Waiting for new ones...")
+			logger.Logf(LogError, "All transactions are invalid! Waiting for new ones...")
 			return
 		}
 
@@ -519,7 +519,7 @@ func handleTx(request []byte, bc *Blockchain) {
 		UTXOSet := UTXOSet{bc}
 		UTXOSet.Reindex()
 
-		fmt.Println("New block is mined!")
+		logger.Logf(LogWarn, "New block is mined!")
 
 		for _, tx := range txs {
 			txID := hex.EncodeToString(tx.ID)
@@ -553,7 +553,7 @@ func handleVersion(request []byte, bc *Blockchain) {
 		buff    bytes.Buffer
 		payload version
 	)
-	fmt.Println("Handle Version")
+	logger.Logf(LogDebug, "Handle Version")
 
 	buff.Write(request[commandLength:])
 	decoder := gob.NewDecoder(&buff)
@@ -573,7 +573,6 @@ func handleVersion(request []byte, bc *Blockchain) {
 	if myHeight < requestHeight {
 		sendGetBlocks(payload.AddrFrom)
 	} else if myHeight > requestHeight {
-		fmt.Println("Should not get here")
 		sendVersion(payload.AddrFrom, bc)
 	}
 
@@ -583,7 +582,7 @@ func handleVersion(request []byte, bc *Blockchain) {
 }
 
 func sendBlock(addr string, b *Block) {
-	fmt.Println("Send block")
+	logger.Logf(LogDebug, "Send block")
 	payload := gobEncode(block{nodeAddress, addr, Serialize(b)})
 	request := append(commandToBytes("block"), payload...)
 	prepareData(addr, request)
@@ -592,7 +591,7 @@ func sendBlock(addr string, b *Block) {
 func prepareData(address string, request []byte) {
 	if address == "all" {
 		for _, node := range smudge.AllNodes() {
-			fmt.Println(node.Address())
+			logger.Logf(LogDebug, node.Address())
 			if strconv.Itoa(int(node.Port())) != NODE_ID {
 				if err := sendData(node.Address(), request); err != nil {
 					if strings.HasSuffix(err.Error(), "connection refused") {
@@ -602,7 +601,7 @@ func prepareData(address string, request []byte) {
 					log.Panic(err)
 				}
 			} else {
-				fmt.Println("same port")
+				logger.Logf(LogDebug, "same port")
 			}
 		}
 		return
@@ -641,35 +640,35 @@ func sendData(address string, request []byte) error {
 }
 
 func sendGetBlocks(addr string) {
-	fmt.Println("Send get blocks")
+	logger.Logf(LogDebug, "Send Get Blocks")
 	encodedGetBlocks := gobEncode(getblocks{nodeAddress, addr})
 	request := append(commandToBytes("getblocks"), encodedGetBlocks...)
 	prepareData(addr, request)
 }
 
 func sendGetData(addr, kind string, id []byte) {
-	fmt.Println("Send get data")
+	logger.Logf(LogDebug, "Send Get Data")
 	encodedGetData := gobEncode(getdata{nodeAddress, addr, kind, id})
 	request := append(commandToBytes("getdata"), encodedGetData...)
 	prepareData(addr, request)
 }
 
 func sendTx(addr string, tnx *Transaction) {
-	fmt.Println("Send tx")
+	logger.Logf(LogDebug, "Send Tx")
 	encodedTx := gobEncode(tx{nodeAddress, addr, SerializeTransaction(*tnx)})
 	request := append(commandToBytes("tx"), encodedTx...)
 	prepareData(addr, request)
 }
 
 func sendInventory(addr, kind string, blockHashes [][]byte) {
-	fmt.Println("Send inv")
+	logger.Logf(LogDebug, "Send Inv")
 	encodedInventory := gobEncode(inventory{nodeAddress, addr, kind, blockHashes})
 	request := append(commandToBytes("inv"), encodedInventory...)
 	prepareData(addr, request)
 }
 
 func sendVersion(addr string, bc *Blockchain) {
-	fmt.Println("Send Version")
+	logger.Logf(LogDebug, "Send Version")
 	lastHeight := bc.GetLastBlockHeight()
 	encodedLastHeight := gobEncode(version{nodeAddress, addr, nodeVersion, lastHeight})
 	request := append(commandToBytes("version"), encodedLastHeight...)

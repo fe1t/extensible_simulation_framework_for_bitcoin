@@ -305,7 +305,8 @@ func (bc *Blockchain) AddBlock(block *Block) error {
 		oldBlock := b.Get(block.Hash)
 
 		if oldBlock != nil {
-			return errors.New("Already have block: %s\n%x\n")
+			errMsg := fmt.Sprintf("Already have block: n%x\n", block.Hash)
+			return errors.New(errMsg)
 		}
 
 		blockData := Serialize(block)
