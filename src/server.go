@@ -74,14 +74,14 @@ const (
 	protocol      = "tcp"
 	nodeVersion   = 1
 	commandLength = 12
-	baseAddress   = "192.168.0.179"
-	// baseAddress   = "127.0.0.1"
+	etherIface    = "en0"
 )
 
 var (
+	baseAddress     string
 	nodeAddress     string
 	rewardToAddress string
-	knownNodes      = []string{fmt.Sprintf("%s:3000", baseAddress)}
+	knownNodes      = []string{}
 	// blocksInTransit = [][]byte{}
 	// mempool         = make(map[string]Transaction)
 )
@@ -96,29 +96,59 @@ var blocksInTransit = struct {
 	a [][]byte
 }{a: [][]byte{}}
 
-func (m MyStatusListener) OnChange(node *smudge.Node, status smudge.NodeStatus) {
-	fmt.Printf("Node %s is now status %s\n", node.Address(), status)
-}
+func (m MyStatusListener) OnChange(node *smudge.Node, status smudge.NodeStatus) {}
 
-func (m MyBroadcastListener) OnBroadcast(b *smudge.Broadcast) {
-	// broadcastMsg from b.Origin().Address()
-	// fmt.Println("OnBroadcast triggered")
-	// go handleConnection(b.Bytes(), Bc)
+func (m MyBroadcastListener) OnBroadcast(b *smudge.Broadcast) {}
+
+func GetIPOnInterface(i string) string {
+	var err error
+	ip := ""
+
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return "127.0.0.1"
+	}
+	for _, iface := range ifaces {
+		if iface.Name == i {
+			addrs, err := iface.Addrs()
+			if err != nil {
+				return "127.0.0.1"
+			}
+			for _, addr := range addrs {
+				var ipnet net.IP
+				switch v := addr.(type) {
+				case *net.IPNet:
+					ipnet = v.IP
+				case *net.IPAddr:
+					ipnet = v.IP
+				default:
+					fmt.Println("Not connected no network")
+				}
+				ip = ipnet.String()
+			}
+		}
+	}
+	return ip
 }
 
 // ConfigServer configuration for Smudge Library
-func ConfigServer() error {
+func ConfigServer(nodeID, minerAddress string) error {
 	port, err := strconv.Atoi(NODE_ID)
 	if err != nil {
 		return err
 	}
+
+	baseAddress = GetIPOnInterface(etherIface)
+	knownNodes = append(knownNodes, fmt.Sprintf("%s:3000", baseAddress))
+	nodeAddress = fmt.Sprintf("%s:%s", baseAddress, nodeID)
+	rewardToAddress = minerAddress
 
 	// Set configuration options
 	smudge.SetListenIP(net.ParseIP(baseAddress))
 	smudge.SetListenPort(port)
 	smudge.SetHeartbeatMillis(500)
 	smudge.SetMaxBroadcastBytes(2000)
-	smudge.SetLogThreshold(smudge.LogOff)
+	smudge.SetLogThreshold(smudge.LogFatal)
 	// smudge.SetMulticastEnabled(false)
 	smudge.SetClusterName("KU")
 
@@ -152,18 +182,7 @@ func ConfigServer() error {
 
 func StartServer(nodeID, minerAddress string) {
 	var err error
-	// var wg sync.WaitGroup
-
-	nodeAddress = fmt.Sprintf("%s:%s", baseAddress, nodeID)
-	rewardToAddress = minerAddress
-
-	// wg.Add(1)
-	// go func() {
-	// 	err = ConfigServer()
-	// 	wg.Done()
-	// }()
-	// wg.Wait()
-	if err = ConfigServer(); err != nil {
+	if err = ConfigServer(nodeID, minerAddress); err != nil {
 		log.Panic(err)
 	}
 
