@@ -554,7 +554,7 @@ func blockHeader(block *Block) []string {
 		}
 	}
 	pow := NewProofOfWork(block)
-	formatHeader = append(formatHeader, fmt.Sprintf("%*s : %d", -max, headers[0], block.Timestamp))
+	formatHeader = append(formatHeader, fmt.Sprintf("%*s : %d (%s)", -max, headers[0], block.Timestamp, time.Unix(block.Timestamp, 0)))
 	formatHeader = append(formatHeader, fmt.Sprintf("%*s : %d", -max, headers[1], block.Height))
 	formatHeader = append(formatHeader, fmt.Sprintf("%*s : %x", -max, headers[2], block.PrevHash))
 	formatHeader = append(formatHeader, fmt.Sprintf("%*s : %x", -max, headers[3], block.HashTransactions()))
