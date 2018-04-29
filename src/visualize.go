@@ -15,6 +15,8 @@ const blocksBucket = "blocks"
 
 var blocks = make(map[string][]string)
 
+// var blocks = make(map[string]Block)
+
 type TreeHierarchy struct {
 	Name     string           `json:"name"`
 	Children []*TreeHierarchy `json:"children"`
@@ -88,18 +90,20 @@ func dbHandler(w http.ResponseWriter, r *http.Request) {
 
 		for k, v := c.First(); k != nil; k, v = c.Next() {
 			if bytes.Compare(k, []byte("l")) == 0 {
-				// 	blocks["l"] = &Block{Hash: v}
+				// blocks["l"] = &Block{Hash: v}
 				continue
 			}
-			block := Deserialize(v)
-			// blocks[hex.EncodeToString(k)] = block
+			block, err := Deserialize(v)
+			if err != nil {
+				log.Panic("ERROR:", err)
+			}
+			// blocks[hex.EncodeToString(k)] = *block
 			pointTo := hex.EncodeToString(k)
 			if block.PrevHash == nil {
 				// blocks["first"] = append(blocks["first"], pointTo)
 				blocks["first"] = appendIfMissing(blocks["first"], pointTo)
 				continue
 			}
-			// blocks[hex.EncodeToString(block.PrevHash)] = append(blocks[hex.EncodeToString(block.PrevHash)], pointTo)
 			blocks[hex.EncodeToString(block.PrevHash)] = appendIfMissing(blocks[hex.EncodeToString(block.PrevHash)], pointTo)
 		}
 		return nil
