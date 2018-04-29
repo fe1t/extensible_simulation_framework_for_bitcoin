@@ -21,8 +21,9 @@ const (
 )
 
 var (
-	nodeId = os.Getenv("NODE_ID")
-	logger smudge.DefaultLogger
+	nodeId   string
+	logger   smudge.DefaultLogger
+	logLevel string
 )
 
 const (
@@ -78,12 +79,16 @@ func (cli *CLI) printUsage() {
 func (cli *CLI) Run() {
 	cli.validateArgs()
 
+	if err := getEnvs(); err != nil {
+		log.Panic(err)
+	}
+
 	if nodeId == "" {
 		fmt.Printf("NODE_ID env. var is not set!")
 		os.Exit(1)
 	}
 
-	smudge.SetLogThreshold(LogFatal)
+	smudge.SetLogThreshold(getLogLevel(logLevel))
 
 	createBlockchainCmd := flag.NewFlagSet("createblockchain", flag.ExitOnError)
 	createWalletCmd := flag.NewFlagSet("createwallet", flag.ExitOnError)
@@ -321,7 +326,7 @@ func (i *impl) listaddressesInput() {
 
 func (i *impl) showwalletsInput() {
 	defer recoverer()
-	fmt.Println(" > Here are all you wallets")
+	fmt.Println(" > Here are all your wallets")
 	m := getAllBalances(nodeId)
 	i.fmt.DumpWallet(m)
 }
@@ -482,6 +487,7 @@ func getAllBalances(nodeID string) []wallet {
 		if Bc == nil {
 			Bc = NewBlockchain(nodeID)
 		}
+
 		utxoSet := UTXOSet{Bc}
 
 		balance := 0
@@ -641,6 +647,42 @@ func (tf tableFormatter) DumpWallet(wallets []wallet) {
 
 func outputInstructionline() {
 	fmt.Fprintf(os.Stdout, "\n%s\n\n", instructionLine)
+}
+
+func getEnvs() error {
+	var err error
+	nodeId = os.Getenv("NODE_ID")
+	nodeVersion, err = strconv.Atoi(os.Getenv("KU_COIN_VERSION"))
+	if err != nil {
+		fmt.Println("Incorrect KU_COIN_VERSION")
+		os.Exit(1)
+	}
+	etherIface = os.Getenv("GET_IP_ON_INTERFACE")
+	logLevel = os.Getenv("LOG_LEVEL")
+	return err
+}
+
+func getLogLevel(level string) smudge.LogLevel {
+	switch level {
+	case "ALL":
+		return LogAll
+	case "TRACE":
+		return LogTrace
+	case "DEBUG":
+		return LogDebug
+	case "INFO":
+		return LogInfo
+	case "WARN":
+		return LogWarn
+	case "ERROR":
+		return LogError
+	case "FATAL":
+		return LogFatal
+	case "OFF":
+		return LogOff
+	default:
+		return LogOff
+	}
 }
 
 func recoverer() {
