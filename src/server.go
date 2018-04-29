@@ -209,7 +209,7 @@ func StartServer(nodeID, minerAddress string) {
 	}
 
 	time.Sleep(time.Second * 3)
-	// sendVersion("all", Bc)
+	sendVersion("all", Bc)
 
 	// if nodeAddress != knownNodes[0] {
 	// 	sendVersion(knownNodes[0], Bc)
