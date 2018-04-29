@@ -236,6 +236,8 @@ func NewBlockchain(nodeID string) *Blockchain {
 
 	var tip []byte
 	db, err := bolt.Open(dbFile, 0600, nil)
+	// db.NoSync = true
+
 	if err != nil {
 		log.Panic(err)
 	}
@@ -296,15 +298,16 @@ func CreateBlockchain(address, nodeID string) *Blockchain {
 }
 
 func (bc *Blockchain) AddBlock(block *Block) error {
-	bc.Lock()
-	defer bc.Unlock()
-
+	fmt.Println("Enter AddBlock()")
 	pow := NewProofOfWork(block)
 	if !pow.Validate() {
 		errMsg := fmt.Sprintf("Proof of Work false with nounce: %d\n", pow.block.Nonce)
 		return errors.New(errMsg)
 	}
 
+	fmt.Println("before Update")
+	bc.Lock()
+	defer bc.Unlock()
 	err := bc.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blockBucket))
 		oldBlock := b.Get(block.Hash)
@@ -340,6 +343,7 @@ func (bc *Blockchain) AddBlock(block *Block) error {
 
 		return nil
 	})
+	fmt.Println("Before return")
 	if err != nil {
 		return err
 	}

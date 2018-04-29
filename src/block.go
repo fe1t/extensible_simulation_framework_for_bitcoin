@@ -71,6 +71,7 @@ func (b *Block) HashTransactions() []byte {
 }
 
 // NewBlock creates simple block
+// TODO: Undo if not work NewPoW -> PoW -> HashTx return pointer
 func NewBlock(transactions []*Transaction, prevHash []byte, height int) *Block {
 	block := &Block{time.Now().Unix(), transactions, prevHash, []byte{}, 0, height}
 	pow := NewProofOfWork(block)

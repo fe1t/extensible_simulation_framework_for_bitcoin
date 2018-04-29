@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/clockworksoul/smudge"
+	"github.com/davecgh/go-spew/spew"
 )
 
 type addr struct {
@@ -208,7 +209,7 @@ func StartServer(nodeID, minerAddress string) {
 	}
 
 	time.Sleep(time.Second * 3)
-	sendVersion("all", Bc)
+	// sendVersion("all", Bc)
 
 	// if nodeAddress != knownNodes[0] {
 	// 	sendVersion(knownNodes[0], Bc)
@@ -289,7 +290,7 @@ func handleBlock(request []byte, bc *Blockchain) {
 		log.Panic("ERROR:", err)
 	}
 
-	logger.Logf(LogInfo, "Recevied a new block! from", payload.AddrFrom)
+	logger.Logf(LogInfo, "Received a new block! from %s", payload.AddrFrom)
 
 	//TODO: verify block before adding
 	err = bc.AddBlock(block)
@@ -486,6 +487,7 @@ func handleTx(request []byte, bc *Blockchain) {
 	mempool.RLock()
 	memLen := len(mempool.m)
 	mempool.RUnlock()
+	fmt.Println("FUCK")
 	if memLen >= 2 && len(rewardToAddress) > 0 {
 	MineTransactions:
 		var txs []*Transaction
@@ -545,6 +547,10 @@ func handleTx(request []byte, bc *Blockchain) {
 		if memLen > 0 {
 			goto MineTransactions
 		}
+	} else {
+		fmt.Println("FUCK")
+		fmt.Println(len(mempool.m))
+		spew.Dump(rewardToAddress)
 	}
 
 }

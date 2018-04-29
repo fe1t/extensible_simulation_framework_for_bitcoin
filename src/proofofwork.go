@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"math"
 	"math/big"
+
+	"github.com/davecgh/go-spew/spew"
 )
 
 const (
 	maxNonce   = math.MaxInt64
-	targetBits = 4
+	targetBits = 16
 )
 
 // ProofOfWork structure
@@ -21,11 +23,22 @@ type ProofOfWork struct {
 
 // PrepareData to get bytes stream
 func (pow *ProofOfWork) prepareData(nonce int) []byte {
+	fmt.Println("PrevHash")
+	spew.Dump(pow.block.PrevHash)
+	fmt.Println("HashTx")
+	spew.Dump(pow.block.HashTransactions())
+	fmt.Println("TimeStamp")
+	spew.Dump(pow.block.Timestamp)
+	fmt.Println("targetBits")
+	spew.Dump(targetBits)
+	fmt.Println("nonce")
+	spew.Dump(nonce)
 	data := bytes.Join(
 		[][]byte{
 			pow.block.PrevHash,
 			pow.block.HashTransactions(),
-			IntToHex(pow.block.Timestamp),
+			// IntToHex(pow.block.Timestamp),
+			[]byte("1234"),
 			IntToHex(int64(targetBits)),
 			IntToHex(int64(nonce)),
 		},
@@ -45,13 +58,15 @@ func (pow *ProofOfWork) Run() (int, []byte) {
 	for nonce < maxNonce {
 		data := pow.prepareData(nonce)
 		hash = sha256.Sum256(data)
-		logger.Logf(LogDebug, "\r%x", hash)
+		// fmt.Printf("\r")
+		// logger.Logfn(LogDebug, "%x\n", hash)
 		hashInt.SetBytes(hash[:])
 		if hashInt.Cmp(pow.target) == -1 {
 			break
 		}
 		nonce++
 	}
+	logger.Logfn(LogDebug, "%x\n", hash)
 	fmt.Printf("\n\n")
 	return nonce, hash[:]
 }
