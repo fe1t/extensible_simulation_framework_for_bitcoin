@@ -98,7 +98,7 @@ func Serialize(block *Block) []byte {
 }
 
 // Deserialize byte array to block header
-func Deserialize(data []byte) *Block {
+func Deserialize(data []byte) (*Block, error) {
 	var block Block
 	var buf bytes.Buffer
 
@@ -107,8 +107,8 @@ func Deserialize(data []byte) *Block {
 	gobDecoder := gob.NewDecoder(&buf)
 	err := gobDecoder.Decode(&block)
 	if err != nil {
-		log.Panic(err)
+		return &Block{}, err
 	}
 
-	return &block
+	return &block, nil
 }

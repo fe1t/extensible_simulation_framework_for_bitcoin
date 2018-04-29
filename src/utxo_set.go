@@ -47,6 +47,7 @@ func (u UTXOSet) FindSpendableOutputs(pubKeyHash []byte, amount int) (int, map[s
 }
 
 func (u UTXOSet) FindUTXO(pubKeyHash []byte) []TXOutput {
+	// TODO: always freeze here ?
 	u.bc.RLock()
 	defer u.bc.RUnlock()
 

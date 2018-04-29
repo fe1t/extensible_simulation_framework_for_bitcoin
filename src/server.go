@@ -72,18 +72,16 @@ type MyBroadcastListener struct {
 
 const (
 	protocol      = "tcp"
-	nodeVersion   = 1
 	commandLength = 12
-	etherIface    = "en0"
 )
 
 var (
+	nodeVersion     int
+	etherIface      string
+	knownNodes      = []string{}
 	baseAddress     string
 	nodeAddress     string
 	rewardToAddress string
-	knownNodes      = []string{}
-	// blocksInTransit = [][]byte{}
-	// mempool         = make(map[string]Transaction)
 )
 
 var mempool = struct {
@@ -286,7 +284,10 @@ func handleBlock(request []byte, bc *Blockchain) {
 	}
 
 	blockData := payload.Block
-	block := Deserialize(blockData)
+	block, err := Deserialize(blockData)
+	if err != nil {
+		log.Panic("ERROR:", err)
+	}
 
 	logger.Logf(LogInfo, "Recevied a new block! from", payload.AddrFrom)
 
@@ -442,6 +443,7 @@ func handleGetData(request []byte, bc *Blockchain) {
 
 }
 
+// TODO: if miner off then on... broadcast txs ?
 func handleTx(request []byte, bc *Blockchain) {
 	var (
 		buff    bytes.Buffer

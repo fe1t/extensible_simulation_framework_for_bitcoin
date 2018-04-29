@@ -210,6 +210,7 @@ func NewUTXOTransaction(wallet *Wallet, to string, amount int, utxoSet *UTXOSet)
 	}
 
 	// Build inputs
+	// TODO: check for case send 0 -> 0
 	for txID, outs := range spendableOutputs {
 		txid, err := hex.DecodeString(txID)
 		if err != nil {

@@ -40,14 +40,16 @@ func (bc *Blockchain) Iterator() *BlockchainIterator {
 }
 
 func (i *BlockchainIterator) Next() *Block {
-	var block *Block
+	var ret *Block
 
 	err := i.db.View(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket([]byte(blockBucket))
 		encodedBlock := bucket.Get(i.currentHash)
-		// spew.Dump(i.currentHash)
-		// spew.Dump(encodedBlock)
-		block = Deserialize(encodedBlock)
+		block, err := Deserialize(encodedBlock)
+		if err != nil {
+			return err
+		}
+		ret = block
 		return nil
 	})
 
@@ -55,9 +57,9 @@ func (i *BlockchainIterator) Next() *Block {
 		log.Panic(err)
 	}
 
-	i.currentHash = block.PrevHash
+	i.currentHash = ret.PrevHash
 
-	return block
+	return ret
 }
 
 func (bc *Blockchain) MineBlock(transactions []*Transaction) *Block {
@@ -78,7 +80,10 @@ func (bc *Blockchain) MineBlock(transactions []*Transaction) *Block {
 		bucket := tx.Bucket([]byte(blockBucket))
 		lastHash = bucket.Get([]byte("l"))
 		blockData := bucket.Get(lastHash)
-		block := Deserialize(blockData)
+		block, err := Deserialize(blockData)
+		if err != nil {
+			return err
+		}
 		lastHeight = block.Height
 		return nil
 	})
@@ -317,7 +322,10 @@ func (bc *Blockchain) AddBlock(block *Block) error {
 
 		lastHash := b.Get([]byte("l"))
 		lastBlockData := b.Get(lastHash)
-		lastBlock := Deserialize(lastBlockData)
+		lastBlock, err := Deserialize(lastBlockData)
+		if err != nil {
+			return err
+		}
 
 		// TODO: should return err ?
 		if lastBlock.Height >= block.Height {
@@ -342,13 +350,19 @@ func (bc *Blockchain) GetLastBlockHeight() int {
 	bc.RLock()
 	defer bc.RUnlock()
 
-	var lastBlock Block
+	var ret Block
 
 	err := bc.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blockBucket))
 		lastHash := b.Get([]byte("l"))
 		blockData := b.Get(lastHash)
-		lastBlock = *Deserialize(blockData)
+
+		// TODO: *Deserialize
+		lastBlock, err := Deserialize(blockData)
+		if err != nil {
+			return err
+		}
+		ret = *lastBlock
 
 		return nil
 	})
@@ -356,14 +370,14 @@ func (bc *Blockchain) GetLastBlockHeight() int {
 		log.Panic(err)
 	}
 
-	return lastBlock.Height
+	return ret.Height
 }
 
 func (bc *Blockchain) GetBlock(blockHash []byte) (Block, error) {
 	bc.RLock()
 	defer bc.RUnlock()
 
-	var block Block
+	var ret Block
 
 	err := bc.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blockBucket))
@@ -374,15 +388,20 @@ func (bc *Blockchain) GetBlock(blockHash []byte) (Block, error) {
 			return errors.New("Block not found")
 		}
 
-		block = *Deserialize(blockData)
+		// TODO: *Deserialize
+		block, err := Deserialize(blockData)
+		if err != nil {
+			return err
+		}
+		ret = *block
 
 		return nil
 	})
 	if err != nil {
-		return block, err
+		return ret, err
 	}
 
-	return block, nil
+	return ret, nil
 }
 
 func (bc *Blockchain) GetBlockHashes() [][]byte {
