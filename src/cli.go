@@ -544,7 +544,7 @@ func printChain(nodeID string) {
 	}
 }
 
-func blockHeader(block *Block) []string {
+func blockHeader(block Block) []string {
 	var formatHeader []string
 	headers := []string{"Timestamp", "Height", "Prev block", "Merkle root", "Nonce", "PoW"}
 	max := 0

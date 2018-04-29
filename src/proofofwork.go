@@ -12,12 +12,12 @@ import (
 
 const (
 	maxNonce   = math.MaxInt64
-	targetBits = 16
+	targetBits = 12
 )
 
 // ProofOfWork structure
 type ProofOfWork struct {
-	block  *Block
+	block  Block
 	target *big.Int
 }
 
@@ -37,8 +37,8 @@ func (pow *ProofOfWork) prepareData(nonce int) []byte {
 		[][]byte{
 			pow.block.PrevHash,
 			pow.block.HashTransactions(),
-			// IntToHex(pow.block.Timestamp),
-			[]byte("1234"),
+			IntToHex(pow.block.Timestamp),
+			// []byte("1234"),
 			IntToHex(int64(targetBits)),
 			IntToHex(int64(nonce)),
 		},
@@ -72,7 +72,7 @@ func (pow *ProofOfWork) Run() (int, []byte) {
 }
 
 // NewProofOfWork creates new PoW for the current block
-func NewProofOfWork(b *Block) *ProofOfWork {
+func NewProofOfWork(b Block) *ProofOfWork {
 	target := big.NewInt(1)
 	target.Lsh(target, uint(256-targetBits))
 	pow := &ProofOfWork{b, target}

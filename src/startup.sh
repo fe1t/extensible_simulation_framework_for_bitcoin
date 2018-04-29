@@ -1,4 +1,4 @@
-go build -o blockchain_go *.go
+go build -race -o blockchain_go *.go
 rm -rf blockchain_genesis.db blockchain_3000.db blockchain_3001.db blockchain_3002.db blockchain_3003.db
 rm -rf wallet_3000.dat wallet_3001.dat wallet_3002.dat wallet_3003.dat
 

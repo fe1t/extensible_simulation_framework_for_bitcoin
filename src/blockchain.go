@@ -39,8 +39,8 @@ func (bc *Blockchain) Iterator() *BlockchainIterator {
 	return bci
 }
 
-func (i *BlockchainIterator) Next() *Block {
-	var ret *Block
+func (i *BlockchainIterator) Next() Block {
+	var ret Block
 
 	err := i.db.View(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket([]byte(blockBucket))
@@ -62,7 +62,7 @@ func (i *BlockchainIterator) Next() *Block {
 	return ret
 }
 
-func (bc *Blockchain) MineBlock(transactions []*Transaction) *Block {
+func (bc *Blockchain) MineBlock(transactions []*Transaction) Block {
 	var (
 		lastHash   []byte
 		lastHeight int
@@ -87,9 +87,9 @@ func (bc *Blockchain) MineBlock(transactions []*Transaction) *Block {
 		lastHeight = block.Height
 		return nil
 	})
-	bc.RUnlock()
 
 	newBlock := NewBlock(transactions, lastHash, lastHeight+1)
+	bc.RUnlock()
 
 	bc.Lock()
 	err = bc.db.Update(func(tx *bolt.Tx) error {
@@ -297,7 +297,7 @@ func CreateBlockchain(address, nodeID string) *Blockchain {
 	return &bc
 }
 
-func (bc *Blockchain) AddBlock(block *Block) error {
+func (bc *Blockchain) AddBlock(block Block) error {
 	fmt.Println("Enter AddBlock()")
 	pow := NewProofOfWork(block)
 	if !pow.Validate() {
@@ -366,7 +366,7 @@ func (bc *Blockchain) GetLastBlockHeight() int {
 		if err != nil {
 			return err
 		}
-		ret = *lastBlock
+		ret = lastBlock
 
 		return nil
 	})
@@ -397,7 +397,7 @@ func (bc *Blockchain) GetBlock(blockHash []byte) (Block, error) {
 		if err != nil {
 			return err
 		}
-		ret = *block
+		ret = block
 
 		return nil
 	})

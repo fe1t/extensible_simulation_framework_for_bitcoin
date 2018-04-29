@@ -57,7 +57,7 @@ func (b *Block) UnmarshalJSON(data []byte) error {
 }
 
 // HashTransactions returns a hash of the transactions in the block
-func (b *Block) HashTransactions() []byte {
+func (b Block) HashTransactions() []byte {
 	var transactions []Content
 
 	for _, tx := range b.Transactions {
@@ -72,8 +72,8 @@ func (b *Block) HashTransactions() []byte {
 
 // NewBlock creates simple block
 // TODO: Undo if not work NewPoW -> PoW -> HashTx return pointer
-func NewBlock(transactions []*Transaction, prevHash []byte, height int) *Block {
-	block := &Block{time.Now().Unix(), transactions, prevHash, []byte{}, 0, height}
+func NewBlock(transactions []*Transaction, prevHash []byte, height int) Block {
+	block := Block{time.Now().Unix(), transactions, prevHash, []byte{}, 0, height}
 	pow := NewProofOfWork(block)
 	nonce, hash := pow.Run()
 	block.Nonce = nonce
@@ -82,12 +82,12 @@ func NewBlock(transactions []*Transaction, prevHash []byte, height int) *Block {
 }
 
 // NewGenesisBlock creates simple block without defining prevHash
-func NewGenesisBlock(coinbase *Transaction) *Block {
+func NewGenesisBlock(coinbase *Transaction) Block {
 	return NewBlock([]*Transaction{coinbase}, []byte{}, 0)
 }
 
 // Serialize block header to byte array
-func Serialize(block *Block) []byte {
+func Serialize(block Block) []byte {
 	var result bytes.Buffer
 
 	gobEncoder := gob.NewEncoder(&result)
@@ -99,7 +99,7 @@ func Serialize(block *Block) []byte {
 }
 
 // Deserialize byte array to block header
-func Deserialize(data []byte) (*Block, error) {
+func Deserialize(data []byte) (Block, error) {
 	var block Block
 	var buf bytes.Buffer
 
@@ -108,8 +108,8 @@ func Deserialize(data []byte) (*Block, error) {
 	gobDecoder := gob.NewDecoder(&buf)
 	err := gobDecoder.Decode(&block)
 	if err != nil {
-		return &Block{}, err
+		return Block{}, err
 	}
 
-	return &block, nil
+	return block, nil
 }

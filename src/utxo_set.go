@@ -142,7 +142,7 @@ func (u UTXOSet) Reindex() {
 	}
 }
 
-func (u UTXOSet) Update(block *Block) {
+func (u UTXOSet) Update(block Block) {
 	u.bc.RLock()
 	defer u.bc.RUnlock()
 

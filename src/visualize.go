@@ -50,7 +50,7 @@ func appendIfMissing(slice []string, s string) []string {
 }
 
 func blocksHanlder(w http.ResponseWriter, r *http.Request) {
-	var blocks []*Block
+	var blocks []Block
 
 	if Bc == nil {
 		Bc = NewBlockchain(nodeId)

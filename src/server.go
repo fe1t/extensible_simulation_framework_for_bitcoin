@@ -209,7 +209,7 @@ func StartServer(nodeID, minerAddress string) {
 	}
 
 	time.Sleep(time.Second * 3)
-	// sendVersion("all", Bc)
+	sendVersion("all", Bc)
 
 	// if nodeAddress != knownNodes[0] {
 	// 	sendVersion(knownNodes[0], Bc)
@@ -427,7 +427,7 @@ func handleGetData(request []byte, bc *Blockchain) {
 			return
 		}
 
-		sendBlock(payload.AddrFrom, &block)
+		sendBlock(payload.AddrFrom, block)
 	}
 
 	if payload.Type == "tx" {
@@ -487,12 +487,13 @@ func handleTx(request []byte, bc *Blockchain) {
 	mempool.RLock()
 	memLen := len(mempool.m)
 	mempool.RUnlock()
-	fmt.Println("FUCK")
+	fmt.Println("HEY")
 	if memLen >= 2 && len(rewardToAddress) > 0 {
 	MineTransactions:
 		var txs []*Transaction
 		var usedTXInput [][]byte
 
+		fmt.Println("pretty Ok")
 		mempool.Lock()
 		for id := range mempool.m {
 			tx := mempool.m[id]
@@ -518,6 +519,7 @@ func handleTx(request []byte, bc *Blockchain) {
 		cbTx := NewCoinbaseTX(rewardToAddress, "")
 		txs = append(txs, cbTx)
 
+		fmt.Println("very ok")
 		newBlock := bc.MineBlock(txs)
 		UTXOSet := UTXOSet{bc}
 		UTXOSet.Reindex()
@@ -548,7 +550,7 @@ func handleTx(request []byte, bc *Blockchain) {
 			goto MineTransactions
 		}
 	} else {
-		fmt.Println("FUCK")
+		fmt.Println("HEY")
 		fmt.Println(len(mempool.m))
 		spew.Dump(rewardToAddress)
 	}
@@ -588,7 +590,7 @@ func handleVersion(request []byte, bc *Blockchain) {
 	}
 }
 
-func sendBlock(addr string, b *Block) {
+func sendBlock(addr string, b Block) {
 	logger.Logf(LogDebug, "Send block")
 	payload := gobEncode(block{nodeAddress, addr, Serialize(b)})
 	request := append(commandToBytes("block"), payload...)
