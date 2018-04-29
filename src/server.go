@@ -133,7 +133,7 @@ func GetIPOnInterface(i string) string {
 
 // ConfigServer configuration for Smudge Library
 func ConfigServer(nodeID, minerAddress string) error {
-	port, err := strconv.Atoi(NODE_ID)
+	port, err := strconv.Atoi(nodeId)
 	if err != nil {
 		return err
 	}
@@ -148,7 +148,6 @@ func ConfigServer(nodeID, minerAddress string) error {
 	smudge.SetListenPort(port)
 	smudge.SetHeartbeatMillis(500)
 	smudge.SetMaxBroadcastBytes(2000)
-	smudge.SetLogThreshold(LogFatal)
 	// smudge.SetMulticastEnabled(false)
 	smudge.SetClusterName("KU")
 
@@ -187,7 +186,7 @@ func StartServer(nodeID, minerAddress string) {
 	}
 
 	go func() {
-		ln, err := net.Listen(protocol, fmt.Sprintf(":1%s", NODE_ID))
+		ln, err := net.Listen(protocol, fmt.Sprintf(":1%s", nodeId))
 		if err != nil {
 			log.Panic(err)
 		}
@@ -592,7 +591,7 @@ func prepareData(address string, request []byte) {
 	if address == "all" {
 		for _, node := range smudge.AllNodes() {
 			logger.Logf(LogDebug, node.Address())
-			if strconv.Itoa(int(node.Port())) != NODE_ID {
+			if strconv.Itoa(int(node.Port())) != nodeId {
 				if err := sendData(node.Address(), request); err != nil {
 					if strings.HasSuffix(err.Error(), "connection refused") {
 						smudge.UpdateNodeStatus(node, smudge.StatusDead, nil)

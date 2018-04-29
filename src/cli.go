@@ -21,8 +21,8 @@ const (
 )
 
 var (
-	NODE_ID = os.Getenv("NODE_ID")
-	logger  smudge.DefaultLogger
+	nodeId = os.Getenv("NODE_ID")
+	logger smudge.DefaultLogger
 )
 
 const (
@@ -78,10 +78,12 @@ func (cli *CLI) printUsage() {
 func (cli *CLI) Run() {
 	cli.validateArgs()
 
-	if NODE_ID == "" {
+	if nodeId == "" {
 		fmt.Printf("NODE_ID env. var is not set!")
 		os.Exit(1)
 	}
+
+	smudge.SetLogThreshold(LogFatal)
 
 	createBlockchainCmd := flag.NewFlagSet("createblockchain", flag.ExitOnError)
 	createWalletCmd := flag.NewFlagSet("createwallet", flag.ExitOnError)
@@ -154,24 +156,24 @@ func (cli *CLI) Run() {
 			createBlockchainCmd.Usage()
 			os.Exit(1)
 		}
-		createBlockchain(*createBlockchainAddress, NODE_ID)
+		createBlockchain(*createBlockchainAddress, nodeId)
 	}
 
 	if createWalletCmd.Parsed() {
-		createWallet(NODE_ID)
+		createWallet(nodeId)
 	}
 
 	if listAddressesCmd.Parsed() {
-		listAddresses(NODE_ID)
+		listAddresses(nodeId)
 	}
 
 	if startNodeCmd.Parsed() {
-		if NODE_ID == "" {
+		if nodeId == "" {
 			startNodeCmd.Usage()
 			os.Exit(1)
 		}
-		Bc = NewBlockchain(NODE_ID)
-		cli.startNode(NODE_ID, *startNodeMiner, *startNodeInteractive)
+		Bc = NewBlockchain(nodeId)
+		cli.startNode(nodeId, *startNodeMiner, *startNodeInteractive)
 		if *startNodeInteractive == true {
 			app := clii.NewApp()
 			app.Action = func(c *clii.Context) error {
@@ -188,18 +190,18 @@ func (cli *CLI) Run() {
 	}
 
 	if printChainCmd.Parsed() {
-		printChain(NODE_ID)
+		printChain(nodeId)
 	}
 
 	if reindexUTXOCmd.Parsed() {
-		reindexUTXO(NODE_ID)
+		reindexUTXO(nodeId)
 	}
 	if getBalanceCmd.Parsed() {
 		if *getBalanceAddress == "" {
 			getBalanceCmd.Usage()
 			os.Exit(1)
 		}
-		getBalance(*getBalanceAddress, NODE_ID)
+		getBalance(*getBalanceAddress, nodeId)
 	}
 
 	if sendCmd.Parsed() {
@@ -208,7 +210,7 @@ func (cli *CLI) Run() {
 			os.Exit(1)
 		}
 
-		send(*sendFrom, *sendTo, *sendAmount, NODE_ID, *sendMine)
+		send(*sendFrom, *sendTo, *sendAmount, nodeId, *sendMine)
 	}
 
 }
@@ -297,7 +299,7 @@ func (i *impl) readInput() {
 
 func (i *impl) createwalletInput() {
 	defer recoverer()
-	createWallet(NODE_ID)
+	createWallet(nodeId)
 }
 
 func (i *impl) getbalanceInput() {
@@ -308,26 +310,26 @@ func (i *impl) getbalanceInput() {
 	if address == "\x02" {
 		return
 	}
-	getBalance(address, NODE_ID)
+	getBalance(address, nodeId)
 }
 
 func (i *impl) listaddressesInput() {
 	defer recoverer()
 	fmt.Println(" > Here are your available addresses:")
-	listAddresses(NODE_ID)
+	listAddresses(nodeId)
 }
 
 func (i *impl) showwalletsInput() {
 	defer recoverer()
 	fmt.Println(" > Here are all you wallets")
-	m := getAllBalances(NODE_ID)
+	m := getAllBalances(nodeId)
 	i.fmt.DumpWallet(m)
 }
 
 func (i *impl) printchainInput() {
 	defer recoverer()
 	fmt.Println(" > Your blockchain looks like this:")
-	printChain(NODE_ID)
+	printChain(nodeId)
 }
 
 func (i *impl) printpeerInput() {
@@ -351,9 +353,7 @@ func (i *impl) checkupdateInput() {
 func (i *impl) reindexutxoInput() {
 	defer recoverer()
 	fmt.Println(" > Reindexing the UTXO set:")
-	reindexUTXO(NODE_ID)
-	time.Sleep(time.Millisecond * 500)
-	fmt.Printf(" ...DONE!\n")
+	reindexUTXO(nodeId)
 }
 
 func (i *impl) sendInput() {
@@ -392,7 +392,7 @@ func (i *impl) sendInput() {
 		confirmation = scanner.Text()
 		switch confirmation {
 		case "y":
-			send(fromAddr, toAddr, amount, NODE_ID, false)
+			send(fromAddr, toAddr, amount, nodeId, false)
 			return
 		case "n":
 			return

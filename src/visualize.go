@@ -51,7 +51,7 @@ func blocksHanlder(w http.ResponseWriter, r *http.Request) {
 	var blocks []*Block
 
 	if Bc == nil {
-		Bc = NewBlockchain(NODE_ID)
+		Bc = NewBlockchain(nodeId)
 	}
 
 	bci := Bc.Iterator()
@@ -77,7 +77,7 @@ func dbHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
 	if Bc == nil {
-		Bc = NewBlockchain(NODE_ID)
+		Bc = NewBlockchain(nodeId)
 	}
 	err := Bc.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blocksBucket))
@@ -120,7 +120,7 @@ func dbHandler(w http.ResponseWriter, r *http.Request) {
 func RunHTTP() {
 	http.HandleFunc("/blocks", dbHandler)
 
-	port := fmt.Sprintf(":2%s", NODE_ID)
+	port := fmt.Sprintf(":2%s", nodeId)
 	fmt.Println("HTTP listening at port:", port)
 	if err := http.ListenAndServe(port, nil); err != nil {
 		// TODO: implement global logger
