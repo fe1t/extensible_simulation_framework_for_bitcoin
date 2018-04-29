@@ -76,8 +76,9 @@ func blocksHanlder(w http.ResponseWriter, r *http.Request) {
 }
 
 func dbHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
+	var ret *TreeHierarchy
 
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 	if Bc == nil {
 		Bc = NewBlockchain(nodeId)
 	}
@@ -110,7 +111,11 @@ func dbHandler(w http.ResponseWriter, r *http.Request) {
 	})
 
 	parentBlock := &TreeHierarchy{Name: blocks["first"][0]}
-	ret := createTreeHierarchy(parentBlock)
+	if len(blocks) == 1 {
+		ret = parentBlock
+	} else {
+		ret = createTreeHierarchy(parentBlock)
+	}
 
 	res, err := json.MarshalIndent(ret, "", "  ")
 	if err != nil {
@@ -122,6 +127,7 @@ func dbHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func RunHTTP() {
+	// http.HandleFunc("/blocks", blocksHanlder)
 	http.HandleFunc("/blocks", dbHandler)
 
 	port := fmt.Sprintf(":2%s", nodeId)
