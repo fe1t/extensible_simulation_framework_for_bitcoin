@@ -18,8 +18,8 @@ wallet_3001_4=$(./blockchain_go createwallet | awk '{print $4}')
 
 export NODE_ID=3000
 amount=10
+echo "Sending from $wallet_3000_1 to $wallet_3001_1 $amount coins"
 ./blockchain_go send -from $wallet_3000_1 -to $wallet_3001_1 -amount $amount -mine
-echo "Sent from $wallet_3000_1 to $wallet_3001_1 $amount coins"
 
 ./blockchain_go startnode -interactive true
 # ./blockchain_go startnode 

@@ -5,18 +5,33 @@ import (
 	"encoding/gob"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"log"
 	"time"
 )
 
+var blockUpdate = make(chan UpdateInfo)
+
 // Block struct
 type Block struct {
 	Timestamp    int64
-	Transactions []*Transaction
+	Transactions []Transaction
 	PrevHash     []byte
 	Hash         []byte
 	Nonce        int
 	Height       int
+}
+
+type UpdateInfo struct {
+	usedTxs    [][]byte
+	lastHash   []byte
+	lastHeight int
+}
+
+type BlockUpdated struct {
+	txs        []Transaction
+	lastHash   []byte
+	lastHeight int
 }
 
 func (b *Block) MarshalJSON() ([]byte, error) {
@@ -72,18 +87,34 @@ func (b Block) HashTransactions() []byte {
 
 // NewBlock creates simple block
 // TODO: Undo if not work NewPoW -> PoW -> HashTx return pointer
-func NewBlock(transactions []*Transaction, prevHash []byte, height int) Block {
-	block := Block{time.Now().Unix(), transactions, prevHash, []byte{}, 0, height}
-	pow := NewProofOfWork(block)
-	nonce, hash := pow.Run()
+func NewBlock(transactions []Transaction, prevHash []byte, height int) Block {
+	var (
+		block        Block
+		nonce        int
+		hash         []byte
+		done         bool
+		blockUpdated BlockUpdated
+	)
+
+	blockUpdated = BlockUpdated{transactions, prevHash, height}
+
+	for {
+		block = Block{time.Now().Unix(), blockUpdated.txs, blockUpdated.lastHash, []byte{}, 0, blockUpdated.lastHeight}
+		pow := NewProofOfWork(block)
+		nonce, hash, done, blockUpdated = pow.Run()
+		fmt.Println("ABC")
+		if done {
+			break
+		}
+	}
 	block.Nonce = nonce
 	block.Hash = hash[:]
 	return block
 }
 
 // NewGenesisBlock creates simple block without defining prevHash
-func NewGenesisBlock(coinbase *Transaction) Block {
-	return NewBlock([]*Transaction{coinbase}, []byte{}, 0)
+func NewGenesisBlock(coinbase Transaction) Block {
+	return NewBlock([]Transaction{coinbase}, []byte{}, 0)
 }
 
 // Serialize block header to byte array

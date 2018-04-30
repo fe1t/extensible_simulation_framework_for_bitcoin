@@ -1,11 +1,14 @@
 package main
 
 import (
+	"sync"
+
 	"github.com/joho/godotenv"
 )
 
 // Bc for Singleton blockchain connection
 var Bc *Blockchain
+var once sync.Once
 
 func loadConfiguration() error {
 	return godotenv.Load("config.env")

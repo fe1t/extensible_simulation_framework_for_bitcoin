@@ -198,7 +198,7 @@ func (tx *Transaction) Verify(prevTxs map[string]Transaction) bool {
 	return true
 }
 
-func NewUTXOTransaction(wallet *Wallet, to string, amount int, utxoSet *UTXOSet) *Transaction {
+func NewUTXOTransaction(wallet *Wallet, to string, amount int, utxoSet *UTXOSet) Transaction {
 	var (
 		inTxs  []TXInput
 		outTxs []TXOutput
@@ -232,14 +232,14 @@ func NewUTXOTransaction(wallet *Wallet, to string, amount int, utxoSet *UTXOSet)
 	tx := Transaction{nil, inTxs, outTxs}
 	tx.ID = tx.Hash()
 	utxoSet.bc.SignTransaction(&tx, wallet.PrivateKey)
-	return &tx
+	return tx
 }
 
 // func NewCoinbaseTX(to, data string) *Transaction {
 
 // }
 
-func NewCoinbaseTX(to, data string) *Transaction {
+func NewCoinbaseTX(to, data string) Transaction {
 	if data == "" { // prevent no reward
 		randData := make([]byte, 20)
 		_, err := rand.Read(randData)
@@ -254,7 +254,7 @@ func NewCoinbaseTX(to, data string) *Transaction {
 	txout := NewTXOutput(subsidy, to)
 	tx := Transaction{nil, []TXInput{txin}, []TXOutput{*txout}}
 	tx.ID = tx.Hash()
-	return &tx
+	return tx
 
 }
 

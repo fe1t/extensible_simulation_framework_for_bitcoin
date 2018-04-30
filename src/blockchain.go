@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/boltdb/bolt"
+	"github.com/davecgh/go-spew/spew"
 )
 
 const (
@@ -62,51 +63,53 @@ func (i *BlockchainIterator) Next() Block {
 	return ret
 }
 
-func (bc *Blockchain) MineBlock(transactions []*Transaction) Block {
-	var (
-		lastHash   []byte
-		lastHeight int
-	)
+func (bc *Blockchain) MineBlock(transactions []Transaction) Block {
 
-	bc.RLock()
 	for _, tx := range transactions {
 		// TODO: ignore transaction if it's not valid
-		if !bc.VerifyTransaction(tx) {
+		if !bc.VerifyTransaction(&tx) {
 			log.Panic("ERROR: Invalid transaction")
 		}
 	}
 
-	err := bc.db.View(func(tx *bolt.Tx) error {
+	lastHash, lastHeight := bc.GetLatest()
+
+	cpyTxs := make([]Transaction, len(transactions))
+	copy(cpyTxs, transactions)
+
+	cpyPHash := make([]byte, len(lastHash))
+	copy(cpyPHash, lastHash)
+
+	newBlock := NewBlock(cpyTxs, cpyPHash, lastHeight+1)
+
+	// TODO: verify again
+	for _, tx := range newBlock.Transactions {
+		// TODO: ignore transaction if it's not valid
+		if !bc.VerifyTransaction(&tx) {
+			log.Panic("ERROR: Invalid transaction")
+		}
+	}
+
+	Bc.Lock()
+	defer Bc.Unlock()
+	fmt.Println("GO")
+	err := bc.db.Update(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket([]byte(blockBucket))
-		lastHash = bucket.Get([]byte("l"))
-		blockData := bucket.Get(lastHash)
-		block, err := Deserialize(blockData)
+
+		// TODO: Serialize race ?
+		var err error
+		err = bucket.Put(newBlock.Hash, Serialize(newBlock))
 		if err != nil {
 			return err
 		}
-		lastHeight = block.Height
-		return nil
-	})
-
-	newBlock := NewBlock(transactions, lastHash, lastHeight+1)
-	bc.RUnlock()
-
-	bc.Lock()
-	err = bc.db.Update(func(tx *bolt.Tx) error {
-		bucket := tx.Bucket([]byte(blockBucket))
-		err = bucket.Put(newBlock.Hash, Serialize(newBlock))
-		if err != nil {
-			log.Panic(err)
-		}
 		err = bucket.Put([]byte("l"), newBlock.Hash)
 		if err != nil {
-			log.Panic(err)
+			return err
 		}
 
 		bc.tip = newBlock.Hash
 		return nil
 	})
-	bc.Unlock()
 
 	if err != nil {
 		log.Panic(err)
@@ -169,7 +172,7 @@ func (bc *Blockchain) FindTransaction(ID []byte) (Transaction, error) {
 
 		for _, tx := range block.Transactions {
 			if bytes.Compare(tx.ID, ID) == 0 {
-				return *tx, nil
+				return tx, nil
 			}
 		}
 
@@ -306,8 +309,9 @@ func (bc *Blockchain) AddBlock(block Block) error {
 	}
 
 	fmt.Println("before Update")
-	bc.Lock()
-	defer bc.Unlock()
+	Bc.Lock()
+	defer Bc.Unlock()
+	fmt.Println("GOGO")
 	err := bc.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blockBucket))
 		oldBlock := b.Get(block.Hash)
@@ -344,6 +348,7 @@ func (bc *Blockchain) AddBlock(block Block) error {
 		return nil
 	})
 	fmt.Println("Before return")
+	spew.Dump(err)
 	if err != nil {
 		return err
 	}
@@ -426,4 +431,38 @@ func (bc *Blockchain) GetBlockHashes() [][]byte {
 	}
 
 	return blocks
+}
+
+func (bc *Blockchain) GetLatest() ([]byte, int) {
+	var (
+		lastHash   []byte
+		lastHeight int
+	)
+
+	bc.RLock()
+	defer bc.RUnlock()
+	err := bc.db.View(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket([]byte(blockBucket))
+		lastHash = bucket.Get([]byte("l"))
+		blockData := bucket.Get(lastHash)
+		block, err := Deserialize(blockData)
+		if err != nil {
+			return err
+		}
+		lastHeight = block.Height
+		return nil
+	})
+	if err != nil {
+		log.Panic(err)
+	}
+
+	return lastHash, lastHeight
+}
+
+func GetBlockchain() *Blockchain {
+	once.Do(func() {
+		logger.Logf(LogFatal, "Should not get HERE twice")
+		Bc = NewBlockchain(nodeId)
+	})
+	return Bc
 }

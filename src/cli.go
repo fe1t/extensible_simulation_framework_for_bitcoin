@@ -177,7 +177,6 @@ func (cli *CLI) Run() {
 			startNodeCmd.Usage()
 			os.Exit(1)
 		}
-		Bc = NewBlockchain(nodeId)
 		cli.startNode(nodeId, *startNodeMiner, *startNodeInteractive)
 		if *startNodeInteractive == true {
 			app := clii.NewApp()
@@ -350,7 +349,7 @@ func (i *impl) printpeerInput() {
 func (i *impl) checkupdateInput() {
 	defer recoverer()
 	fmt.Printf(" > Updating version:")
-	sendVersion("all", Bc)
+	sendVersion("all")
 	time.Sleep(time.Millisecond * 500)
 	fmt.Printf(" ...DONE!\n")
 }
@@ -455,9 +454,7 @@ func getBalance(address, nodeID string) {
 	if !ValidateAddress(address) {
 		log.Panic("ERROR: Address is not valid")
 	}
-	if Bc == nil {
-		Bc = NewBlockchain(nodeID)
-	}
+	Bc = GetBlockchain()
 	utxoSet := UTXOSet{Bc}
 	// defer bc.db.Close()
 
@@ -484,10 +481,8 @@ func getAllBalances(nodeID string) []wallet {
 		if !ValidateAddress(address) {
 			continue
 		}
-		if Bc == nil {
-			Bc = NewBlockchain(nodeID)
-		}
 
+		Bc = GetBlockchain()
 		utxoSet := UTXOSet{Bc}
 
 		balance := 0
@@ -518,11 +513,7 @@ func listAddresses(nodeID string) {
 }
 
 func printChain(nodeID string) {
-	if Bc == nil {
-		Bc = NewBlockchain(nodeID)
-	}
-	// defer bc.db.Close()
-
+	Bc = GetBlockchain()
 	bci := Bc.Iterator()
 
 	for {
@@ -564,9 +555,7 @@ func blockHeader(block Block) []string {
 }
 
 func reindexUTXO(nodeID string) {
-	if Bc == nil {
-		Bc = NewBlockchain(nodeID)
-	}
+	Bc = GetBlockchain()
 	UTXOSet := UTXOSet{Bc}
 	UTXOSet.Reindex()
 
@@ -582,9 +571,7 @@ func send(from, to string, amount int, nodeID string, mineNow bool) {
 		log.Panic("ERROR: Recipient address is not valid")
 	}
 
-	if Bc == nil {
-		Bc = NewBlockchain(nodeID)
-	}
+	Bc = GetBlockchain()
 	UTXOSet := UTXOSet{Bc}
 	// defer bc.db.Close()
 
@@ -598,7 +585,7 @@ func send(from, to string, amount int, nodeID string, mineNow bool) {
 
 	if mineNow {
 		cbTx := NewCoinbaseTX(from, "")
-		txs := []*Transaction{cbTx, tx}
+		txs := []Transaction{cbTx, tx}
 
 		newBlock := Bc.MineBlock(txs)
 		UTXOSet.Update(newBlock)

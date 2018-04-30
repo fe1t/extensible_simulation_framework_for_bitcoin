@@ -78,9 +78,6 @@ func (u UTXOSet) FindUTXO(pubKeyHash []byte) []TXOutput {
 }
 
 func (u UTXOSet) CountTransactions() int {
-	u.bc.RLock()
-	defer u.bc.RUnlock()
-
 	db := u.bc.db
 	counter := 0
 
@@ -102,37 +99,21 @@ func (u UTXOSet) CountTransactions() int {
 }
 
 func (u UTXOSet) Reindex() {
-	u.bc.RLock()
-	defer u.bc.RUnlock()
+	bucketName := []byte(utxoBucket)
+	u.ClearChainState(bucketName)
+
+	utxos := u.bc.FindUTXO()
 
 	db := u.bc.db
-	bucketName := []byte(utxoBucket)
-
+	u.bc.Lock()
+	defer u.bc.Unlock()
 	err := db.Update(func(tx *bolt.Tx) error {
-		err := tx.DeleteBucket(bucketName)
-		if err != nil && err != bolt.ErrBucketNotFound {
-			log.Panic(err)
-		}
-
-		_, err = tx.CreateBucket(bucketName)
-		if err != nil {
-			log.Panic(err)
-		}
-
-		return nil
-	})
-
-	if err != nil {
-		log.Panic(err)
-	}
-	utxos := u.bc.FindUTXO()
-	err = db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(bucketName)
 		for txID, outs := range utxos {
 			txid, err := hex.DecodeString(txID)
 			err = b.Put(txid, SerializeOutputs(outs))
 			if err != nil {
-				log.Panic(err)
+				return err
 			}
 		}
 		return nil
@@ -142,9 +123,11 @@ func (u UTXOSet) Reindex() {
 	}
 }
 
-func (u UTXOSet) Update(block Block) {
-	u.bc.RLock()
-	defer u.bc.RUnlock()
+func (u UTXOSet) Update(block Block) [][]byte {
+	u.bc.Lock()
+	defer u.bc.Unlock()
+
+	var usedTxs = [][]byte{}
 
 	db := u.bc.db
 
@@ -167,16 +150,17 @@ func (u UTXOSet) Update(block Block) {
 					if len(updatedOuts.Outputs) == 0 {
 						err := bucket.Delete(inTx.Txid)
 						if err != nil {
-							log.Panic(err)
+							return err
 						}
 					} else {
 						err := bucket.Put(inTx.Txid, SerializeOutputs(updatedOuts))
 						if err != nil {
-							log.Panic(err)
+							return err
 						}
 					}
 
 				}
+				usedTxs = append(usedTxs, tx.ID)
 			}
 
 			newOutputs := TXOutputs{}
@@ -186,12 +170,37 @@ func (u UTXOSet) Update(block Block) {
 
 			err := bucket.Put(tx.ID, SerializeOutputs(newOutputs))
 			if err != nil {
-				log.Panic(err)
+				return err
 			}
 		}
 
 		return nil
 	})
+	if err != nil {
+		log.Panic(err)
+	}
+	return usedTxs
+}
+
+func (u UTXOSet) ClearChainState(bucketName []byte) {
+	u.bc.Lock()
+	defer u.bc.Unlock()
+
+	db := u.bc.db
+	err := db.Update(func(tx *bolt.Tx) error {
+		err := tx.DeleteBucket(bucketName)
+		if err != nil && err != bolt.ErrBucketNotFound {
+			log.Panic(err)
+		}
+
+		_, err = tx.CreateBucket(bucketName)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+
 	if err != nil {
 		log.Panic(err)
 	}

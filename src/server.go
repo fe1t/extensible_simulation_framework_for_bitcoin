@@ -79,7 +79,6 @@ const (
 var (
 	nodeVersion     int
 	etherIface      string
-	knownNodes      = []string{}
 	baseAddress     string
 	nodeAddress     string
 	rewardToAddress string
@@ -94,6 +93,11 @@ var blocksInTransit = struct {
 	sync.RWMutex
 	a [][]byte
 }{a: [][]byte{}}
+
+var knownNodes = struct {
+	sync.RWMutex
+	a []string
+}{a: []string{}}
 
 func (m MyStatusListener) OnChange(node *smudge.Node, status smudge.NodeStatus) {}
 
@@ -138,7 +142,9 @@ func ConfigServer(nodeID, minerAddress string) error {
 	}
 
 	baseAddress = GetIPOnInterface(etherIface)
-	knownNodes = append(knownNodes, fmt.Sprintf("%s:3000", baseAddress))
+	knownNodes.Lock()
+	knownNodes.a = append(knownNodes.a, fmt.Sprintf("%s:3000", baseAddress))
+	knownNodes.Unlock()
 	nodeAddress = fmt.Sprintf("%s:%s", baseAddress, nodeID)
 	rewardToAddress = minerAddress
 
@@ -156,8 +162,13 @@ func ConfigServer(nodeID, minerAddress string) error {
 	// Add a new remote node. Currently, to join an existing cluster you must
 	// add at least one of its healthy member nodes.
 
-	if nodeAddress != knownNodes[0] {
-		node, err := smudge.CreateNodeByAddress(knownNodes[0])
+	// start the server
+	knownNodes.RLock()
+	firstNode := knownNodes.a[0]
+	knownNodes.RUnlock()
+
+	if nodeAddress != firstNode {
+		node, err := smudge.CreateNodeByAddress(firstNode)
 		if err == nil {
 			smudge.AddNode(node)
 		} else {
@@ -165,7 +176,6 @@ func ConfigServer(nodeID, minerAddress string) error {
 		}
 	}
 
-	// start the server
 	go func() {
 		smudge.Begin()
 	}()
@@ -180,6 +190,7 @@ func ConfigServer(nodeID, minerAddress string) error {
 
 func StartServer(nodeID, minerAddress string) {
 	var err error
+
 	if err = ConfigServer(nodeID, minerAddress); err != nil {
 		log.Panic(err)
 	}
@@ -197,26 +208,23 @@ func StartServer(nodeID, minerAddress string) {
 				err = err2
 				return
 			}
-			go handleConnection(conn, Bc)
+			go handleConnection(conn)
 		}
 	}()
 	if err != nil {
 		log.Panic(err)
 	}
 
-	if Bc == nil {
-		Bc = NewBlockchain(nodeID)
-	}
-
+	Bc = GetBlockchain()
 	time.Sleep(time.Second * 3)
-	sendVersion("all", Bc)
+	sendVersion("all")
 
 	// if nodeAddress != knownNodes[0] {
 	// 	sendVersion(knownNodes[0], Bc)
 	// }
 }
 
-func handleConnection(conn net.Conn, bc *Blockchain) {
+func handleConnection(conn net.Conn) {
 	request, err := ioutil.ReadAll(conn)
 	if err != nil {
 		log.Panic(err)
@@ -229,17 +237,17 @@ func handleConnection(conn net.Conn, bc *Blockchain) {
 	// case "addr":
 	// 	handleAddr(request)
 	case "block":
-		handleBlock(request, bc)
+		handleBlock(request)
 	case "inv":
-		handleInventory(request, bc)
+		handleInventory(request)
 	case "getblocks":
-		handleGetBlocks(request, bc)
+		handleGetBlocks(request)
 	case "getdata":
-		handleGetData(request, bc)
+		handleGetData(request)
 	case "tx":
-		handleTx(request, bc)
+		handleTx(request)
 	case "version":
-		handleVersion(request, bc)
+		handleVersion(request)
 	default:
 		logger.Logf(LogInfo, "Unknown command!")
 	}
@@ -262,12 +270,16 @@ func handleAddr(request []byte) {
 		return
 	}
 
-	knownNodes = append(knownNodes, payload.AddrList...)
-	logger.Logf(LogInfo, "There are %d known nodes now!\n", len(knownNodes))
+	knownNodes.Lock()
+	knownNodes.a = append(knownNodes.a, payload.AddrList...)
+	knownNodes.Unlock()
+	knownNodes.RLock()
+	logger.Logf(LogInfo, "There are %d known nodes now!\n", len(knownNodes.a))
+	knownNodes.RUnlock()
 	requestBlocks()
 }
 
-func handleBlock(request []byte, bc *Blockchain) {
+func handleBlock(request []byte) {
 	var (
 		buff    bytes.Buffer
 		payload block
@@ -293,12 +305,17 @@ func handleBlock(request []byte, bc *Blockchain) {
 	logger.Logf(LogInfo, "Received a new block! from %s", payload.AddrFrom)
 
 	//TODO: verify block before adding
-	err = bc.AddBlock(block)
+	err = Bc.AddBlock(block)
 
 	if err != nil {
 		logger.Logf(LogError, err.Error())
 	} else {
 		logger.Logf(LogInfo, "Added block %x\n", block.Hash)
+		UTXOSet := UTXOSet{Bc}
+		usedTxs := UTXOSet.Update(block)
+		fmt.Println("Hello World")
+		spew.Dump(usedTxs)
+		blockUpdate <- UpdateInfo{usedTxs, block.Hash, block.Height}
 	}
 	// blockHashes := bc.GetBlockHashes()
 
@@ -316,19 +333,23 @@ func handleBlock(request []byte, bc *Blockchain) {
 	transistNum := len(blocksInTransit.a)
 	if transistNum > 0 {
 		// TODO: reverse transmit
+		fmt.Println("Before send get block")
 		blockHash := blocksInTransit.a[0]
+		fmt.Println(blockHash)
 		sendGetData(payload.AddrFrom, "block", blockHash)
 		blocksInTransit.a = blocksInTransit.a[1:]
-	} else {
-		UTXOSet := UTXOSet{bc}
-
-		// TODO: mostly cause problem
-		UTXOSet.Reindex()
 	}
+	// } else {
+
+	// 	fmt.Println("before reindexing")
+	// 	// TODO: mostly cause problem
+	// 	// UTXOSet.Reindex()
+	// }
 	blocksInTransit.Unlock()
+	fmt.Println("return from added")
 }
 
-func handleInventory(request []byte, bc *Blockchain) {
+func handleInventory(request []byte) {
 	var (
 		buff    bytes.Buffer
 		payload inventory
@@ -383,7 +404,7 @@ func handleInventory(request []byte, bc *Blockchain) {
 	}
 }
 
-func handleGetBlocks(request []byte, bc *Blockchain) {
+func handleGetBlocks(request []byte) {
 	var (
 		buff    bytes.Buffer
 		payload getblocks
@@ -400,11 +421,11 @@ func handleGetBlocks(request []byte, bc *Blockchain) {
 		return
 	}
 
-	blockHashes := bc.GetBlockHashes()
+	blockHashes := Bc.GetBlockHashes()
 	sendInventory(payload.AddrFrom, "block", blockHashes)
 }
 
-func handleGetData(request []byte, bc *Blockchain) {
+func handleGetData(request []byte) {
 	var (
 		buff    bytes.Buffer
 		payload getdata
@@ -422,8 +443,9 @@ func handleGetData(request []byte, bc *Blockchain) {
 	}
 
 	if payload.Type == "block" {
-		block, err := bc.GetBlock([]byte(payload.ID))
+		block, err := Bc.GetBlock([]byte(payload.ID))
 		if err != nil {
+			logger.Logf(LogFatal, "Block not found")
 			return
 		}
 
@@ -438,14 +460,14 @@ func handleGetData(request []byte, bc *Blockchain) {
 		mempool.RUnlock()
 		tx := memTx
 
-		sendTx(payload.AddrFrom, &tx)
+		sendTx(payload.AddrFrom, tx)
 		// delete(mempool, txID)
 	}
 
 }
 
 // TODO: if miner off then on... broadcast txs ?
-func handleTx(request []byte, bc *Blockchain) {
+func handleTx(request []byte) {
 	var (
 		buff    bytes.Buffer
 		payload tx
@@ -484,25 +506,29 @@ func handleTx(request []byte, bc *Blockchain) {
 		}
 	*/
 
+	Bc = GetBlockchain()
 	mempool.RLock()
 	memLen := len(mempool.m)
 	mempool.RUnlock()
 	fmt.Println("HEY")
 	if memLen >= 2 && len(rewardToAddress) > 0 {
 	MineTransactions:
-		var txs []*Transaction
+		var txs []Transaction
 		var usedTXInput [][]byte
 
 		fmt.Println("pretty Ok")
+		fmt.Println(len(mempool.m))
 		mempool.Lock()
 		for id := range mempool.m {
 			tx := mempool.m[id]
 			if hasSameTXInput(usedTXInput, tx.Vin) {
 				delete(mempool.m, id)
 			} else {
-				verified := bc.VerifyTransaction(&tx)
+				fmt.Println("before ok")
+				verified := Bc.VerifyTransaction(&tx)
+				fmt.Println("ok")
 				if verified {
-					txs = append(txs, &tx)
+					txs = append(txs, tx)
 					for i := range tx.Vin {
 						usedTXInput = append(usedTXInput, tx.Vin[i].Txid)
 					}
@@ -520,9 +546,11 @@ func handleTx(request []byte, bc *Blockchain) {
 		txs = append(txs, cbTx)
 
 		fmt.Println("very ok")
-		newBlock := bc.MineBlock(txs)
-		UTXOSet := UTXOSet{bc}
-		UTXOSet.Reindex()
+
+		newBlock := Bc.MineBlock(txs)
+		UTXOSet := UTXOSet{Bc}
+		UTXOSet.Update(newBlock)
+		// UTXOSet.Reindex()
 
 		logger.Logf(LogWarn, "New block is mined!")
 
@@ -557,7 +585,7 @@ func handleTx(request []byte, bc *Blockchain) {
 
 }
 
-func handleVersion(request []byte, bc *Blockchain) {
+func handleVersion(request []byte) {
 	var (
 		buff    bytes.Buffer
 		payload version
@@ -576,17 +604,20 @@ func handleVersion(request []byte, bc *Blockchain) {
 		return
 	}
 
-	myHeight := bc.GetLastBlockHeight()
+	Bc = GetBlockchain()
+	myHeight := Bc.GetLastBlockHeight()
 	requestHeight := payload.BlockHeight
 
 	if myHeight < requestHeight {
 		sendGetBlocks(payload.AddrFrom)
 	} else if myHeight > requestHeight {
-		sendVersion(payload.AddrFrom, bc)
+		sendVersion(payload.AddrFrom)
 	}
 
 	if !nodeIsKnown(payload.AddrFrom) {
-		knownNodes = append(knownNodes, payload.AddrFrom)
+		knownNodes.Lock()
+		knownNodes.a = append(knownNodes.a, payload.AddrFrom)
+		knownNodes.Unlock()
 	}
 }
 
@@ -662,9 +693,9 @@ func sendGetData(addr, kind string, id []byte) {
 	prepareData(addr, request)
 }
 
-func sendTx(addr string, tnx *Transaction) {
+func sendTx(addr string, tnx Transaction) {
 	logger.Logf(LogDebug, "Send Tx")
-	encodedTx := gobEncode(tx{nodeAddress, addr, SerializeTransaction(*tnx)})
+	encodedTx := gobEncode(tx{nodeAddress, addr, SerializeTransaction(tnx)})
 	request := append(commandToBytes("tx"), encodedTx...)
 	prepareData(addr, request)
 }
@@ -676,16 +707,19 @@ func sendInventory(addr, kind string, blockHashes [][]byte) {
 	prepareData(addr, request)
 }
 
-func sendVersion(addr string, bc *Blockchain) {
+func sendVersion(addr string) {
 	logger.Logf(LogDebug, "Send Version")
-	lastHeight := bc.GetLastBlockHeight()
+	Bc = GetBlockchain()
+	lastHeight := Bc.GetLastBlockHeight()
 	encodedLastHeight := gobEncode(version{nodeAddress, addr, nodeVersion, lastHeight})
 	request := append(commandToBytes("version"), encodedLastHeight...)
 	prepareData(addr, request)
 }
 
 func nodeIsKnown(address string) bool {
-	for _, node := range knownNodes {
+	knownNodes.RLock()
+	defer knownNodes.RUnlock()
+	for _, node := range knownNodes.a {
 		if node == address {
 			return true
 		}
@@ -694,7 +728,9 @@ func nodeIsKnown(address string) bool {
 }
 
 func requestBlocks() {
-	for _, node := range knownNodes {
+	knownNodes.RLock()
+	defer knownNodes.RUnlock()
+	for _, node := range knownNodes.a {
 		sendGetBlocks(node)
 	}
 }
