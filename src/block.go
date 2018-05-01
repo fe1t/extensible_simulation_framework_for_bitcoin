@@ -8,8 +8,6 @@ import (
 	"log"
 	"sync"
 	"time"
-
-	"github.com/davecgh/go-spew/spew"
 )
 
 var blockUpdate = make(chan UpdateInfo)
@@ -103,11 +101,8 @@ func NewBlock(transactions []Transaction, prevHash []byte, height int) Block {
 
 	for {
 		block = Block{time.Now().Unix(), blockUpdated.txs, blockUpdated.lastHash, []byte{}, 0, blockUpdated.lastHeight}
-		// fmt.Println("show blocks")
-		// spew.Dump(block)
 		pow := NewProofOfWork(block)
 		nonce, hash, done, blockUpdated = pow.Run()
-		spew.Dump(done)
 		if blockUpdated.lastHeight == -1 && nonce == 0 && done {
 			return Block{}
 		}
@@ -117,7 +112,6 @@ func NewBlock(transactions []Transaction, prevHash []byte, height int) Block {
 	}
 	block.Nonce = nonce
 	block.Hash = hash[:]
-	// spew.Dump(block)
 	return block
 }
 
