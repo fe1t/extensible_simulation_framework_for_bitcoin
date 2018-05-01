@@ -13,31 +13,42 @@ import (
 
 const blocksBucket = "blocks"
 
-var blocks = make(map[string][]string)
+var blocks = make(map[string][]BlockHeader)
 
 // var blocks = make(map[string]Block)
 
 type TreeHierarchy struct {
-	Name     string           `json:"name"`
-	Hash     string           `json:"hash"`
-	PrevHash string           `json:"prevHash"`
-	Children []*TreeHierarchy `json:"children"`
+	Name      string           `json:"name"`
+	Hash      string           `json:"hash"`
+	PrevHash  string           `json:"prevHash"`
+	Timestamp int64            `json:"timestamp"`
+	Nonce     int              `json:"nonce"`
+	Children  []*TreeHierarchy `json:"children"`
 }
 
-func (parent *TreeHierarchy) addChild(Hash string) *TreeHierarchy {
-	child := &TreeHierarchy{Hash: Hash}
+type BlockHeader struct {
+	Hash      string
+	PrevHash  string
+	Timestamp int64
+	Nonce     int
+}
+
+func (parent *TreeHierarchy) addChild(hash string, prevHash string, timestamp int64, nonce int) *TreeHierarchy {
+	child := &TreeHierarchy{Hash: hash, PrevHash: prevHash, Timestamp: timestamp, Nonce: nonce}
 	parent.Children = append(parent.Children, child)
 	return child
 }
 
-func tagHeaders(level int, parent *TreeHierarchy, prevHash string) {
+func tagHeaders(level int, parent *TreeHierarchy, prevHash string, timestamp int64, nonce int) {
 	if parent == nil {
 		return
 	}
 	parent.Name = fmt.Sprintf("#%d", level)
 	parent.PrevHash = prevHash
+	parent.Timestamp = timestamp
+	parent.Nonce = nonce
 	for _, child := range parent.Children {
-		tagHeaders(level+1, child, parent.Hash)
+		tagHeaders(level+1, child, parent.Hash, child.Timestamp, child.Nonce)
 	}
 }
 
@@ -46,13 +57,13 @@ func createTreeHierarchy(parentBlock *TreeHierarchy) *TreeHierarchy {
 		return &TreeHierarchy{}
 	}
 	for _, c := range blocks[parentBlock.Hash] {
-		child := parentBlock.addChild(c)
+		child := parentBlock.addChild(c.Hash, c.PrevHash, c.Timestamp, c.Nonce)
 		child = createTreeHierarchy(child)
 	}
 	return parentBlock
 }
 
-func appendIfMissing(slice []string, s string) []string {
+func appendIfMissing(slice []BlockHeader, s BlockHeader) []BlockHeader {
 	for _, el := range slice {
 		if el == s {
 			return slice
@@ -108,7 +119,7 @@ func dbHandler(w http.ResponseWriter, r *http.Request) {
 				log.Panic("ERROR:", err)
 			}
 			// blocks[hex.EncodeToString(k)] = *block
-			pointTo := hex.EncodeToString(k)
+			pointTo := BlockHeader{hex.EncodeToString(block.Hash), hex.EncodeToString(block.PrevHash), block.Timestamp, block.Nonce}
 			if block.PrevHash == nil {
 				// blocks["first"] = append(blocks["first"], pointTo)
 				blocks["first"] = appendIfMissing(blocks["first"], pointTo)
@@ -119,13 +130,13 @@ func dbHandler(w http.ResponseWriter, r *http.Request) {
 		return nil
 	})
 
-	parentBlock := &TreeHierarchy{Hash: blocks["first"][0]}
+	parentBlock := &TreeHierarchy{Hash: blocks["first"][0].Hash}
 	if len(blocks) == 1 {
 		ret = parentBlock
 	} else {
 		ret = createTreeHierarchy(parentBlock)
 	}
-	tagHeaders(0, ret, "nil")
+	// tagHeaders(0, ret, "nil", blocks["first"][0].Timestamp, blocks["first"][0].Nonce)
 
 	res, err := json.MarshalIndent(ret, "", "  ")
 	if err != nil {
