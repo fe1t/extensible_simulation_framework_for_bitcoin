@@ -108,7 +108,7 @@ FOR_LOOP:
 		}
 
 	}
-	logger.Logfn(LogDebug, "%x\n", hash)
+	logger.Logfn(LogFatal, "%x\n", hash)
 	fmt.Printf("\n\n")
 	return nonce, hash[:], done, BlockUpdated{}
 }

@@ -322,12 +322,21 @@ func handleBlock(request []byte) {
 		}
 		mempool.Unlock()
 		logger.Logf(LogDebug, "Current mempool:\n%s", spew.Sdump(mempool.m))
-		blockUpdate <- UpdateInfo{usedTxs, block.Hash, block.Height}
+		spew.Dump(usedTxs)
+		spew.Dump(block)
+		mempool.RLock()
+		isMining := mempool.mining
+		mempool.RUnlock()
+		if isMining {
+			blockUpdate <- UpdateInfo{usedTxs, block.Hash, block.Height}
+		}
 	}
 	blocksInTransit.Lock()
 	transistNum := len(blocksInTransit.a)
+	fmt.Println("easy lcok %d", transistNum)
 	if transistNum > 0 {
 		// TODO: reverse transmit
+		fmt.Println("block hash")
 		blockHash := blocksInTransit.a[0]
 		sendGetData(payload.AddrFrom, "block", blockHash)
 		blocksInTransit.a = blocksInTransit.a[1:]

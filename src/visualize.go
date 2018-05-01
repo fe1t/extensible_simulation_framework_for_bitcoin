@@ -127,7 +127,8 @@ func dbHandler(w http.ResponseWriter, r *http.Request) {
 		return nil
 	})
 
-	parentBlock := &TreeHierarchy{Hash: blocks["first"][0].Hash}
+	firstBlock := blocks["first"][0]
+	parentBlock := &TreeHierarchy{Hash: firstBlock.Hash, Timestamp: firstBlock.Timestamp, Nonce: firstBlock.Nonce}
 	if len(blocks) == 1 {
 		ret = parentBlock
 	} else {
