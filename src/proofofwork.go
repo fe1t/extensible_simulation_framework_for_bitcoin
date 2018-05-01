@@ -7,8 +7,6 @@ import (
 	"math"
 	"math/big"
 	"time"
-
-	"github.com/davecgh/go-spew/spew"
 )
 
 const (
@@ -24,22 +22,11 @@ type ProofOfWork struct {
 
 // PrepareData to get bytes stream
 func (pow ProofOfWork) prepareData(nonce int) []byte {
-	// fmt.Println("PrevHash")
-	// spew.Dump(pow.block.PrevHash)
-	// fmt.Println("HashTx")
-	// spew.Dump(pow.block.HashTransactions())
-	// fmt.Println("TimeStamp")
-	// spew.Dump(pow.block.Timestamp)
-	// fmt.Println("targetBits")
-	// spew.Dump(targetBits)
-	// fmt.Println("nonce")
-	// spew.Dump(nonce)
 	data := bytes.Join(
 		[][]byte{
 			pow.block.PrevHash,
 			pow.block.HashTransactions(),
 			IntToHex(pow.block.Timestamp),
-			// []byte("1234"),
 			IntToHex(int64(targetBits)),
 			IntToHex(int64(nonce)),
 		},
@@ -68,10 +55,6 @@ FOR_LOOP:
 			for i := 0; i < len(pow.block.Transactions); i++ {
 				deleted := false
 				for _, usedTx := range updated.usedTxs {
-					// spew.Dump("=============")
-					// spew.Dump("current txs:", hex.EncodeToString(pow.block.Transactions[i].ID))
-					// spew.Dump("usedTx:", hex.EncodeToString(usedTx))
-					// spew.Dump("=============")
 					if bytes.Compare(pow.block.Transactions[i].ID, usedTx) == 0 {
 						deleted = true
 					}
@@ -86,7 +69,7 @@ FOR_LOOP:
 			cpyPHash := make([]byte, len(updated.lastHash))
 			copy(cpyPHash, updated.lastHash)
 			blockUpdated := BlockUpdated{cpyTxs, cpyPHash, updated.lastHeight + 1}
-			spew.Dump(blockUpdated)
+			// spew.Dump(blockUpdated)
 			if len(cpyTxs) == 1 {
 				return 0, []byte{}, true, BlockUpdated{lastHeight: -1}
 			}
@@ -94,8 +77,8 @@ FOR_LOOP:
 		default:
 			data := pow.prepareData(nonce)
 			hash = sha256.Sum256(data)
-			// fmt.Printf("\r")
-			// logger.Logfn(LogDebug, "%x\n", hash)
+			fmt.Printf("\r")
+			logger.Logfn(LogDebug, "%x\n", hash)
 			hashInt.SetBytes(hash[:])
 			if hashInt.Cmp(pow.target) == -1 {
 				break FOR_LOOP
@@ -108,7 +91,7 @@ FOR_LOOP:
 		}
 
 	}
-	logger.Logfn(LogFatal, "%x\n", hash)
+	// logger.Logfn(LogFatal, "%x\n", hash)
 	fmt.Printf("\n\n")
 	return nonce, hash[:], done, BlockUpdated{}
 }

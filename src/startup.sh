@@ -21,7 +21,7 @@ export NODE_ID=3000
 amount=10
 echo "Sending from $wallet_3000_1 to $wallet_3001_1 $amount coins"
 ./blockchain_go send -from $wallet_3000_1 -to $wallet_3001_1 -amount $amount -mine
-./blockchain_go send -from $wallet_3000_1 -to $wallet_3001_1 -amount $amount -mine
+./blockchain_go send -from $wallet_3000_1 -to $wallet_3001_2 -amount $amount -mine
 
 # ./blockchain_go startnode -miner $wallet_3000_1 -interactive true
 ./blockchain_go startnode  -miner $wallet_3000_1 -interactive true
