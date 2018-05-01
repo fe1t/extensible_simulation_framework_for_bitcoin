@@ -101,6 +101,9 @@ func (cli *CLI) Run() {
 	reindexUTXOCmd := flag.NewFlagSet("reindexutxo", flag.ExitOnError)
 	sendCmd := flag.NewFlagSet("send", flag.ExitOnError)
 
+	closeDbCmd := flag.NewFlagSet("closedb", flag.ExitOnError)
+	checkUpdateCmd := flag.NewFlagSet("checkupdate", flag.ExitOnError)
+
 	createBlockchainAddress := createBlockchainCmd.String("address", "", "The address to send genesis block reward to")
 	startNodeInteractive := startNodeCmd.Bool("interactive", false, "Enable interactive mode for easier usage")
 	startNodeMiner := startNodeCmd.String("miner", "", "Enable mining mode and send reward to ADDRESS")
@@ -112,6 +115,11 @@ func (cli *CLI) Run() {
 	getBalanceAddress := getBalanceCmd.String("address", "", "The address to get balance for")
 
 	switch os.Args[1] {
+	case "closedb":
+		err := createBlockchainCmd.Parse(os.Args[2:])
+		if err != nil {
+			log.Panic(err)
+		}
 	case "createblockchain":
 		err := createBlockchainCmd.Parse(os.Args[2:])
 		if err != nil {
@@ -152,6 +160,11 @@ func (cli *CLI) Run() {
 		if err != nil {
 			log.Panic(err)
 		}
+	case "checkupdate":
+		err := listAddressesCmd.Parse(os.Args[2:])
+		if err != nil {
+			log.Panic(err)
+		}
 	default:
 		cli.printUsage()
 		os.Exit(1)
@@ -171,6 +184,15 @@ func (cli *CLI) Run() {
 
 	if listAddressesCmd.Parsed() {
 		listAddresses(nodeId)
+	}
+
+	if checkUpdateCmd.Parsed() {
+		sendVersion("all")
+	}
+
+	if closeDbCmd.Parsed() {
+		Bc = GetBlockchain()
+		Bc.db.Close()
 	}
 
 	if startNodeCmd.Parsed() {
@@ -270,6 +292,8 @@ func (i *impl) readInput() {
 	for scanner.Scan() {
 		command := scanner.Text()
 		switch command {
+		case "closedb":
+			i.closeDbInput()
 		case "createwallet":
 			i.createwalletInput()
 		case "getbalance":
@@ -301,6 +325,11 @@ func (i *impl) readInput() {
 		fmt.Print("Command: ")
 	}
 	fmt.Println(scanner.Err())
+}
+
+func (i *impl) closeDbInput() {
+	Bc = GetBlockchain()
+	Bc.db.Close()
 }
 
 func (i *impl) createwalletInput() {
@@ -376,9 +405,17 @@ func (i *impl) sendInput() {
 	if fromAddr == "\x02" {
 		return
 	}
+	if !ValidateAddress(fromAddr) {
+		fmt.Println("ERROR: Sender address is not valid")
+		return
+	}
 	fmt.Print("To address: ")
 	fmt.Scanf("%s", &toAddr)
 	if toAddr == "\x02" {
+		return
+	}
+	if !ValidateAddress(toAddr) {
+		fmt.Println("ERROR: Recipient address is not valid")
 		return
 	}
 	fmt.Print("Amount coins (int): ")
@@ -387,8 +424,8 @@ func (i *impl) sendInput() {
 		return
 	}
 	amount, err := strconv.Atoi(amountS)
-	if err != nil {
-		fmt.Printf("Cannot parse %s to integer\n", amountS)
+	if err != nil || amount <= 0 {
+		fmt.Println("Amount has to be positive integer")
 		return
 	}
 	fmt.Printf(" > You're trying to send %d coins from %s to %s\n", amount, fromAddr, toAddr)
@@ -575,6 +612,14 @@ func send(from, to string, amount int, nodeID string, mineNow bool) {
 	}
 	if !ValidateAddress(to) {
 		log.Panic("ERROR: Recipient address is not valid")
+	}
+
+	if from == to {
+		log.Panic("ERROR: Sender and recipient cant be the same")
+	}
+
+	if amount <= 0 {
+		log.Panic("ERROR: Amount has to be positive integer.")
 	}
 
 	Bc = GetBlockchain()
