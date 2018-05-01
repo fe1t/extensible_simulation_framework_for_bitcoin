@@ -19,20 +19,33 @@ var blocks = make(map[string][]string)
 
 type TreeHierarchy struct {
 	Name     string           `json:"name"`
+	Hash     string           `json:"hash"`
+	PrevHash string           `json:"prevHash"`
 	Children []*TreeHierarchy `json:"children"`
 }
 
-func (parent *TreeHierarchy) addChild(Name string) *TreeHierarchy {
-	child := &TreeHierarchy{Name: Name}
+func (parent *TreeHierarchy) addChild(Hash string) *TreeHierarchy {
+	child := &TreeHierarchy{Hash: Hash}
 	parent.Children = append(parent.Children, child)
 	return child
 }
 
+func tagHeaders(level int, parent *TreeHierarchy, prevHash string) {
+	if parent == nil {
+		return
+	}
+	parent.Name = fmt.Sprintf("#%d", level)
+	parent.PrevHash = prevHash
+	for _, child := range parent.Children {
+		tagHeaders(level+1, child, parent.Hash)
+	}
+}
+
 func createTreeHierarchy(parentBlock *TreeHierarchy) *TreeHierarchy {
-	if _, ok := blocks[parentBlock.Name]; !ok {
+	if _, ok := blocks[parentBlock.Hash]; !ok {
 		return &TreeHierarchy{}
 	}
-	for _, c := range blocks[parentBlock.Name] {
+	for _, c := range blocks[parentBlock.Hash] {
 		child := parentBlock.addChild(c)
 		child = createTreeHierarchy(child)
 	}
@@ -52,10 +65,7 @@ func appendIfMissing(slice []string, s string) []string {
 func blocksHanlder(w http.ResponseWriter, r *http.Request) {
 	var blocks []Block
 
-	if Bc == nil {
-		Bc = NewBlockchain(nodeId)
-	}
-
+	Bc = GetBlockchain()
 	bci := Bc.Iterator()
 
 	for {
@@ -79,9 +89,8 @@ func dbHandler(w http.ResponseWriter, r *http.Request) {
 	var ret *TreeHierarchy
 
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	if Bc == nil {
-		Bc = NewBlockchain(nodeId)
-	}
+
+	Bc = GetBlockchain()
 	err := Bc.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blocksBucket))
 		c := b.Cursor()
@@ -110,12 +119,13 @@ func dbHandler(w http.ResponseWriter, r *http.Request) {
 		return nil
 	})
 
-	parentBlock := &TreeHierarchy{Name: blocks["first"][0]}
+	parentBlock := &TreeHierarchy{Hash: blocks["first"][0]}
 	if len(blocks) == 1 {
 		ret = parentBlock
 	} else {
 		ret = createTreeHierarchy(parentBlock)
 	}
+	tagHeaders(0, ret, "nil")
 
 	res, err := json.MarshalIndent(ret, "", "  ")
 	if err != nil {
