@@ -86,8 +86,9 @@ var (
 
 var mempool = struct {
 	sync.RWMutex
-	m map[string]Transaction
-}{m: make(map[string]Transaction)}
+	m      map[string]Transaction
+	mining bool
+}{m: make(map[string]Transaction), mining: false}
 
 var blocksInTransit = struct {
 	sync.RWMutex
@@ -249,7 +250,7 @@ func handleConnection(conn net.Conn) {
 	case "version":
 		handleVersion(request)
 	default:
-		logger.Logf(LogInfo, "Unknown command!")
+		logger.Logf(LogInfo, "Unknown command! %s", command)
 	}
 }
 
@@ -305,48 +306,33 @@ func handleBlock(request []byte) {
 	logger.Logf(LogInfo, "Received a new block! from %s", payload.AddrFrom)
 
 	//TODO: verify block before adding
+	Bc = GetBlockchain()
 	err = Bc.AddBlock(block)
 
 	if err != nil {
 		logger.Logf(LogError, err.Error())
 	} else {
 		logger.Logf(LogInfo, "Added block %x\n", block.Hash)
+		mempool.Lock()
 		UTXOSet := UTXOSet{Bc}
 		usedTxs := UTXOSet.Update(block)
-		fmt.Println("Hello World")
-		spew.Dump(usedTxs)
+		for _, tx := range usedTxs {
+			logger.Logf(LogDebug, "Deleting from mempool: %s", hex.EncodeToString(tx))
+			delete(mempool.m, hex.EncodeToString(tx))
+		}
+		mempool.Unlock()
+		logger.Logf(LogDebug, "Current mempool:\n%s", spew.Sdump(mempool.m))
 		blockUpdate <- UpdateInfo{usedTxs, block.Hash, block.Height}
 	}
-	// blockHashes := bc.GetBlockHashes()
-
-	// // TODO: use broadcasr instead
-	// if nodeAddress == knownNodes[0] {
-	// 	for _, node := range knownNodes {
-	// 		if node != nodeAddress {
-	// 			sendInventory(node, "block", blockHashes)
-	// 		}
-	// 	}
-	// }
-	// sendInventory("all", "block", blockHashes)
-
 	blocksInTransit.Lock()
 	transistNum := len(blocksInTransit.a)
 	if transistNum > 0 {
 		// TODO: reverse transmit
-		fmt.Println("Before send get block")
 		blockHash := blocksInTransit.a[0]
-		fmt.Println(blockHash)
 		sendGetData(payload.AddrFrom, "block", blockHash)
 		blocksInTransit.a = blocksInTransit.a[1:]
 	}
-	// } else {
-
-	// 	fmt.Println("before reindexing")
-	// 	// TODO: mostly cause problem
-	// 	// UTXOSet.Reindex()
-	// }
 	blocksInTransit.Unlock()
-	fmt.Println("return from added")
 }
 
 func handleInventory(request []byte) {
@@ -506,27 +492,24 @@ func handleTx(request []byte) {
 		}
 	*/
 
+MineTransactions:
 	Bc = GetBlockchain()
 	mempool.RLock()
 	memLen := len(mempool.m)
+	isMining := mempool.mining
 	mempool.RUnlock()
-	fmt.Println("HEY")
-	if memLen >= 2 && len(rewardToAddress) > 0 {
-	MineTransactions:
+	if memLen >= 2 && len(rewardToAddress) > 0 && !isMining {
 		var txs []Transaction
 		var usedTXInput [][]byte
 
-		fmt.Println("pretty Ok")
-		fmt.Println(len(mempool.m))
 		mempool.Lock()
+		mempool.mining = true
 		for id := range mempool.m {
 			tx := mempool.m[id]
 			if hasSameTXInput(usedTXInput, tx.Vin) {
 				delete(mempool.m, id)
 			} else {
-				fmt.Println("before ok")
 				verified := Bc.VerifyTransaction(&tx)
-				fmt.Println("ok")
 				if verified {
 					txs = append(txs, tx)
 					for i := range tx.Vin {
@@ -538,6 +521,9 @@ func handleTx(request []byte) {
 		mempool.Unlock()
 
 		if len(txs) == 0 {
+			mempool.Lock()
+			mempool.mining = false
+			mempool.Unlock()
 			logger.Logf(LogError, "All transactions are invalid! Waiting for new ones...")
 			return
 		}
@@ -545,43 +531,37 @@ func handleTx(request []byte) {
 		cbTx := NewCoinbaseTX(rewardToAddress, "")
 		txs = append(txs, cbTx)
 
-		fmt.Println("very ok")
-
 		newBlock := Bc.MineBlock(txs)
-		UTXOSet := UTXOSet{Bc}
-		UTXOSet.Update(newBlock)
-		// UTXOSet.Reindex()
+		spew.Dump(newBlock)
+		if newBlock.Timestamp != 0 {
+			UTXOSet := UTXOSet{Bc}
+			UTXOSet.Update(newBlock)
+			// UTXOSet.Reindex()
 
-		logger.Logf(LogWarn, "New block is mined!")
+			logger.Logf(LogWarn, "New block is mined! %s", hex.EncodeToString(newBlock.Hash))
+			sendInventory("all", "block", [][]byte{newBlock.Hash})
 
-		for _, tx := range txs {
+		}
+
+		for _, tx := range newBlock.Transactions {
 			txID := hex.EncodeToString(tx.ID)
 			mempool.Lock()
 			delete(mempool.m, txID)
 			mempool.Unlock()
 		}
 
-		/*
-			broadcast to all known nodes
-			for _, node := range knownNodes {
-				if node != nodeAddress {
-					sendInventory(node, "block", [][]byte{newBlock.Hash})
-				}
-			}
-		*/
-		sendInventory("all", "block", [][]byte{newBlock.Hash})
+		spew.Dump(mempool.m)
 
-		mempool.RLock()
-		memLen := len(mempool.m)
-		mempool.RUnlock()
-		if memLen > 0 {
-			goto MineTransactions
-		}
-	} else {
-		fmt.Println("HEY")
-		fmt.Println(len(mempool.m))
-		spew.Dump(rewardToAddress)
+		mempool.Lock()
+		mempool.mining = false
+		mempool.Unlock()
+
+		goto MineTransactions
 	}
+	// 	fmt.Println("HEY")
+	// 	fmt.Println(len(mempool.m))
+	// 	spew.Dump(rewardToAddress)
+	// }
 
 }
 

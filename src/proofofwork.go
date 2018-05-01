@@ -3,17 +3,17 @@ package main
 import (
 	"bytes"
 	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"math"
 	"math/big"
+	"time"
 
 	"github.com/davecgh/go-spew/spew"
 )
 
 const (
 	maxNonce   = math.MaxInt64
-	targetBits = 12
+	targetBits = 18
 )
 
 // ProofOfWork structure
@@ -24,16 +24,16 @@ type ProofOfWork struct {
 
 // PrepareData to get bytes stream
 func (pow ProofOfWork) prepareData(nonce int) []byte {
-	fmt.Println("PrevHash")
-	spew.Dump(pow.block.PrevHash)
-	fmt.Println("HashTx")
-	spew.Dump(pow.block.HashTransactions())
-	fmt.Println("TimeStamp")
-	spew.Dump(pow.block.Timestamp)
-	fmt.Println("targetBits")
-	spew.Dump(targetBits)
-	fmt.Println("nonce")
-	spew.Dump(nonce)
+	// fmt.Println("PrevHash")
+	// spew.Dump(pow.block.PrevHash)
+	// fmt.Println("HashTx")
+	// spew.Dump(pow.block.HashTransactions())
+	// fmt.Println("TimeStamp")
+	// spew.Dump(pow.block.Timestamp)
+	// fmt.Println("targetBits")
+	// spew.Dump(targetBits)
+	// fmt.Println("nonce")
+	// spew.Dump(nonce)
 	data := bytes.Join(
 		[][]byte{
 			pow.block.PrevHash,
@@ -63,29 +63,33 @@ FOR_LOOP:
 		select {
 		case updated := <-blockUpdate:
 			done = false
+			time.Sleep(time.Second * 2)
+			filteredTxs := []Transaction{}
 			for i := 0; i < len(pow.block.Transactions); i++ {
+				deleted := false
 				for _, usedTx := range updated.usedTxs {
-					fmt.Println("==========================")
-					fmt.Println(hex.EncodeToString(pow.block.Transactions[i].Hash()))
-					fmt.Println(hex.EncodeToString(pow.block.Transactions[i].ID))
-					fmt.Println(hex.EncodeToString(usedTx))
-					fmt.Println("==========================")
+					// spew.Dump("=============")
+					// spew.Dump("current txs:", hex.EncodeToString(pow.block.Transactions[i].ID))
+					// spew.Dump("usedTx:", hex.EncodeToString(usedTx))
+					// spew.Dump("=============")
 					if bytes.Compare(pow.block.Transactions[i].ID, usedTx) == 0 {
-						fmt.Println("DELETED ONE")
-						pow.block.Transactions[i] = pow.block.Transactions[len(pow.block.Transactions)-1]
-						pow.block.Transactions[len(pow.block.Transactions)-1] = Transaction{}
-						pow.block.Transactions = pow.block.Transactions[:len(pow.block.Transactions)-1]
+						deleted = true
 					}
+				}
+				if !deleted {
+					filteredTxs = append(filteredTxs, pow.block.Transactions[i])
 				}
 			}
 			nonce = 0
-			fmt.Println("OH FUCK")
-			cpyTxs := make([]Transaction, len(pow.block.Transactions))
-			copy(cpyTxs, pow.block.Transactions)
+			cpyTxs := make([]Transaction, len(filteredTxs))
+			copy(cpyTxs, filteredTxs)
 			cpyPHash := make([]byte, len(updated.lastHash))
 			copy(cpyPHash, updated.lastHash)
 			blockUpdated := BlockUpdated{cpyTxs, cpyPHash, updated.lastHeight + 1}
 			spew.Dump(blockUpdated)
+			// if len(cpyTxs) == 1 {
+			// 	return 0, []byte{}, true, BlockUpdated{}
+			// }
 			return 0, []byte{}, done, blockUpdated
 		default:
 			data := pow.prepareData(nonce)

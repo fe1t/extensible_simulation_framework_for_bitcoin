@@ -1,3 +1,4 @@
+clear && printf '\e[3J'
 echo $NODE_ID
 wallet_miner=$(./blockchain_go createwallet | awk '{print $4}')
 

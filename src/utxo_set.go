@@ -139,6 +139,9 @@ func (u UTXOSet) Update(block Block) [][]byte {
 				for _, inTx := range tx.Vin {
 					updatedOuts := TXOutputs{}
 					outsBytes := bucket.Get(inTx.Txid)
+					if outsBytes == nil {
+						continue
+					}
 					outs := DeserializeOutputs(outsBytes)
 
 					for outIdx, outTx := range outs.Outputs {

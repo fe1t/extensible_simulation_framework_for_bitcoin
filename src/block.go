@@ -5,12 +5,15 @@ import (
 	"encoding/gob"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"log"
+	"sync"
 	"time"
+
+	"github.com/davecgh/go-spew/spew"
 )
 
 var blockUpdate = make(chan UpdateInfo)
+var paused sync.RWMutex
 
 // Block struct
 type Block struct {
@@ -100,15 +103,18 @@ func NewBlock(transactions []Transaction, prevHash []byte, height int) Block {
 
 	for {
 		block = Block{time.Now().Unix(), blockUpdated.txs, blockUpdated.lastHash, []byte{}, 0, blockUpdated.lastHeight}
+		// fmt.Println("show blocks")
+		// spew.Dump(block)
 		pow := NewProofOfWork(block)
 		nonce, hash, done, blockUpdated = pow.Run()
-		fmt.Println("ABC")
+		spew.Dump(done)
 		if done {
 			break
 		}
 	}
 	block.Nonce = nonce
 	block.Hash = hash[:]
+	// spew.Dump(block)
 	return block
 }
 

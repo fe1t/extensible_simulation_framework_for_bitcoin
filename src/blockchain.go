@@ -11,7 +11,6 @@ import (
 	"sync"
 
 	"github.com/boltdb/bolt"
-	"github.com/davecgh/go-spew/spew"
 )
 
 const (
@@ -82,17 +81,21 @@ func (bc *Blockchain) MineBlock(transactions []Transaction) Block {
 
 	newBlock := NewBlock(cpyTxs, cpyPHash, lastHeight+1)
 
-	// TODO: verify again
-	for _, tx := range newBlock.Transactions {
-		// TODO: ignore transaction if it's not valid
-		if !bc.VerifyTransaction(&tx) {
-			log.Panic("ERROR: Invalid transaction")
+	if newBlock.Timestamp == 0 {
+		return Block{}
+	} else {
+		// TODO: verify again
+		for _, tx := range newBlock.Transactions {
+			// TODO: ignore transaction if it's not valid
+			if !bc.VerifyTransaction(&tx) {
+				log.Panic("ERROR: Invalid transaction")
+			}
 		}
+
 	}
 
 	Bc.Lock()
 	defer Bc.Unlock()
-	fmt.Println("GO")
 	err := bc.db.Update(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket([]byte(blockBucket))
 
@@ -301,17 +304,14 @@ func CreateBlockchain(address, nodeID string) *Blockchain {
 }
 
 func (bc *Blockchain) AddBlock(block Block) error {
-	fmt.Println("Enter AddBlock()")
 	pow := NewProofOfWork(block)
 	if !pow.Validate() {
 		errMsg := fmt.Sprintf("Proof of Work false with nounce: %d\n", pow.block.Nonce)
 		return errors.New(errMsg)
 	}
 
-	fmt.Println("before Update")
 	Bc.Lock()
 	defer Bc.Unlock()
-	fmt.Println("GOGO")
 	err := bc.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blockBucket))
 		oldBlock := b.Get(block.Hash)
@@ -347,8 +347,6 @@ func (bc *Blockchain) AddBlock(block Block) error {
 
 		return nil
 	})
-	fmt.Println("Before return")
-	spew.Dump(err)
 	if err != nil {
 		return err
 	}
@@ -461,7 +459,6 @@ func (bc *Blockchain) GetLatest() ([]byte, int) {
 
 func GetBlockchain() *Blockchain {
 	once.Do(func() {
-		logger.Logf(LogFatal, "Should not get HERE twice")
 		Bc = NewBlockchain(nodeId)
 	})
 	return Bc

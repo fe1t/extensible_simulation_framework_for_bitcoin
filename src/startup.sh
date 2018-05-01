@@ -1,4 +1,5 @@
-go build -race -o blockchain_go *.go
+clear && printf '\e[3J'
+go build -o blockchain_go *.go
 rm -rf blockchain_genesis.db blockchain_3000.db blockchain_3001.db blockchain_3002.db blockchain_3003.db
 rm -rf wallet_3000.dat wallet_3001.dat wallet_3002.dat wallet_3003.dat
 
@@ -21,5 +22,5 @@ amount=10
 echo "Sending from $wallet_3000_1 to $wallet_3001_1 $amount coins"
 ./blockchain_go send -from $wallet_3000_1 -to $wallet_3001_1 -amount $amount -mine
 
-./blockchain_go startnode -interactive true
-# ./blockchain_go startnode 
+# ./blockchain_go startnode -miner $wallet_3000_1 -interactive true
+./blockchain_go startnode  -interactive true
