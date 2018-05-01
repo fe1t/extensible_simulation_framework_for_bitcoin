@@ -21,9 +21,10 @@ const (
 )
 
 var (
-	nodeId   string
-	logger   smudge.DefaultLogger
-	logLevel string
+	minerAddr string
+	nodeId    string
+	logger    smudge.DefaultLogger
+	logLevel  string
 )
 
 const (
@@ -223,6 +224,7 @@ func (cli *CLI) startNode(nodeID, minerAddress string, interactive bool) {
 	fmt.Printf("Starting node %s\n", nodeID)
 	if len(minerAddress) > 0 {
 		if ValidateAddress(minerAddress) {
+			minerAddr = minerAddress
 			fmt.Println("Mining is on. Address to receive rewards: ", minerAddress)
 		} else {
 			log.Panic("Wrong miner address!")
@@ -493,6 +495,10 @@ func getAllBalances(nodeID string) []wallet {
 		for _, out := range utxos {
 			balance += out.Value
 		}
+
+		if len(minerAddr) > 0 && minerAddr == address {
+			address += "*"
+		}
 		ret = append(ret, wallet{address, balance})
 	}
 	return ret
@@ -625,6 +631,8 @@ func (tf tableFormatter) DumpWallet(wallets []wallet) {
 	table := tablewriter.NewWriter(os.Stdout)
 	table.SetColWidth(100)
 	table.SetHeader([]string{"Wallet Address", "Balance"})
+	table.SetHeaderColor(tablewriter.Colors{tablewriter.Bold}, tablewriter.Colors{tablewriter.Bold})
+	table.SetCaption(true, "  [*] miner address")
 	for _, w := range wallets {
 		row := []string{w.address, strconv.Itoa(w.balance)}
 		table.Append(row)
