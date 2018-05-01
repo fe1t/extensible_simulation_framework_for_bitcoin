@@ -333,10 +333,8 @@ func handleBlock(request []byte) {
 	}
 	blocksInTransit.Lock()
 	transistNum := len(blocksInTransit.a)
-	fmt.Println("easy lcok %d", transistNum)
 	if transistNum > 0 {
 		// TODO: reverse transmit
-		fmt.Println("block hash")
 		blockHash := blocksInTransit.a[0]
 		sendGetData(payload.AddrFrom, "block", blockHash)
 		blocksInTransit.a = blocksInTransit.a[1:]
