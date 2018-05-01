@@ -87,9 +87,9 @@ FOR_LOOP:
 			copy(cpyPHash, updated.lastHash)
 			blockUpdated := BlockUpdated{cpyTxs, cpyPHash, updated.lastHeight + 1}
 			spew.Dump(blockUpdated)
-			// if len(cpyTxs) == 1 {
-			// 	return 0, []byte{}, true, BlockUpdated{}
-			// }
+			if len(cpyTxs) == 1 {
+				return 0, []byte{}, true, BlockUpdated{lastHeight: -1}
+			}
 			return 0, []byte{}, done, blockUpdated
 		default:
 			data := pow.prepareData(nonce)

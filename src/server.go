@@ -532,6 +532,7 @@ MineTransactions:
 		txs = append(txs, cbTx)
 
 		newBlock := Bc.MineBlock(txs)
+
 		spew.Dump(newBlock)
 		if newBlock.Timestamp != 0 {
 			UTXOSet := UTXOSet{Bc}

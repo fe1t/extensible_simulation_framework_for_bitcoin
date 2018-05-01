@@ -108,6 +108,9 @@ func NewBlock(transactions []Transaction, prevHash []byte, height int) Block {
 		pow := NewProofOfWork(block)
 		nonce, hash, done, blockUpdated = pow.Run()
 		spew.Dump(done)
+		if blockUpdated.lastHeight == -1 && nonce == 0 && done {
+			return Block{}
+		}
 		if done {
 			break
 		}
