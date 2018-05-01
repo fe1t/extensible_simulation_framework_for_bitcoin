@@ -39,16 +39,13 @@ func (parent *TreeHierarchy) addChild(hash string, prevHash string, timestamp in
 	return child
 }
 
-func tagHeaders(level int, parent *TreeHierarchy, prevHash string, timestamp int64, nonce int) {
+func tagHeaders(level int, parent *TreeHierarchy) {
 	if parent == nil {
 		return
 	}
 	parent.Name = fmt.Sprintf("#%d", level)
-	parent.PrevHash = prevHash
-	parent.Timestamp = timestamp
-	parent.Nonce = nonce
 	for _, child := range parent.Children {
-		tagHeaders(level+1, child, parent.Hash, child.Timestamp, child.Nonce)
+		tagHeaders(level+1, child)
 	}
 }
 
@@ -136,7 +133,7 @@ func dbHandler(w http.ResponseWriter, r *http.Request) {
 	} else {
 		ret = createTreeHierarchy(parentBlock)
 	}
-	// tagHeaders(0, ret, "nil", blocks["first"][0].Timestamp, blocks["first"][0].Nonce)
+	tagHeaders(0, ret)
 
 	res, err := json.MarshalIndent(ret, "", "  ")
 	if err != nil {
