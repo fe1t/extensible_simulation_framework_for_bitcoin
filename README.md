@@ -1,9 +1,4 @@
-# blockchain_programming_in_golang
+# Senior Project 01204499
 
-based-on jeiwan
-
-fixed many bugs there
-
-fixed merkle root bugs using cbergoon
-
-trying to finish real p2p
+### Extensible Simulation Framwork for Bitcoin
+by 5710501565
