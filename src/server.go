@@ -322,8 +322,6 @@ func handleBlock(request []byte) {
 		}
 		mempool.Unlock()
 		logger.Logf(LogDebug, "Current mempool:\n%s", spew.Sdump(mempool.m))
-		spew.Dump(usedTxs)
-		spew.Dump(block)
 		mempool.RLock()
 		isMining := mempool.mining
 		mempool.RUnlock()

@@ -7,3 +7,7 @@ fixed many bugs there
 fixed merkle root bugs using cbergoon
 
 trying to finish real p2p
+
+## TODO
+- add test/docs for each exported fields.
+- etc.
