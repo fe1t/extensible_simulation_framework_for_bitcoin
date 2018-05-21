@@ -22,4 +22,4 @@ Open 4 terminals
 - [ ] add test/docs.
 - [ ] etc.
 
-Repo's status: **not in maintainance**
+Repo status: **not in maintainance**
