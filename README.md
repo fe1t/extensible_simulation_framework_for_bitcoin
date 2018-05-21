@@ -19,7 +19,7 @@ Open 4 terminals
 ```export NODE_ID=3003; ./newmine.sh```
 
 ## TODO
-- [ ] add test/docs for each exported fields.
+- [ ] add test/docs.
 - [ ] etc.
 
 Repo's status: **not in maintainance**
